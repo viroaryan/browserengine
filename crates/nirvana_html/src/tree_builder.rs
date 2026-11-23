@@ -44,6 +44,11 @@ impl TreeBuilder {
 
     fn flush_text(&mut self) {
         if !self.text_buffer.is_empty() {
+            if self.open_elements.is_empty() {
+                // Do not append trailing text to document root after </html> is closed
+                self.text_buffer.clear();
+                return;
+            }
             let parent = self.current_node();
             let text_node = self.tree.create_text(&self.text_buffer);
             let _ = self.tree.append_child(parent, text_node);
@@ -79,9 +84,13 @@ impl TreeBuilder {
             && !is_head_tag
             && next_tag != "html"
         {
+            let html_node = self
+                .open_elements
+                .first()
+                .copied()
+                .unwrap_or_else(|| self.tree.root_id());
             let body = self.tree.create_element("body");
-            let parent = self.current_node();
-            let _ = self.tree.append_child(parent, body);
+            let _ = self.tree.append_child(html_node, body);
             self.open_elements.push(body);
             self.has_body = true;
         }
@@ -109,7 +118,33 @@ impl TreeBuilder {
                             let _ = self.tree.append_child(root, html);
                             self.open_elements.push(html);
                             self.has_html = true;
+                        } else if let Some(&html_node) = self.open_elements.first() {
+                            for (k, v) in &tag.attributes {
+                                let _ = self.tree.set_attribute(html_node, k, v);
+                            }
                         }
+                        continue;
+                    }
+
+                    if tag.name == "head" {
+                        if !self.has_html {
+                            let html = self.tree.create_element("html");
+                            let root = self.tree.root_id();
+                            let _ = self.tree.append_child(root, html);
+                            self.open_elements.push(html);
+                            self.has_html = true;
+                        }
+                        let html_node = self
+                            .open_elements
+                            .first()
+                            .copied()
+                            .unwrap_or_else(|| self.tree.root_id());
+                        let head = self.tree.create_element("head");
+                        for (k, v) in &tag.attributes {
+                            let _ = self.tree.set_attribute(head, k, v);
+                        }
+                        let _ = self.tree.append_child(html_node, head);
+                        self.open_elements.push(head);
                         continue;
                     }
 
@@ -122,14 +157,31 @@ impl TreeBuilder {
                             self.has_html = true;
                         }
                         if !self.has_body {
+                            let html_node = self
+                                .open_elements
+                                .first()
+                                .copied()
+                                .unwrap_or_else(|| self.tree.root_id());
                             let body = self.tree.create_element("body");
                             for (k, v) in &tag.attributes {
                                 let _ = self.tree.set_attribute(body, k, v);
                             }
-                            let parent = self.current_node();
-                            let _ = self.tree.append_child(parent, body);
+                            let _ = self.tree.append_child(html_node, body);
                             self.open_elements.push(body);
                             self.has_body = true;
+                        } else {
+                            // Merge attributes into existing body element
+                            for &elem in &self.open_elements {
+                                if matches!(
+                                    self.tree.get_node(elem).map(|n| &n.data),
+                                    Some(NodeData::Element(data)) if data.tag_name == "body"
+                                ) {
+                                    for (k, v) in &tag.attributes {
+                                        let _ = self.tree.set_attribute(elem, k, v);
+                                    }
+                                    break;
+                                }
+                            }
                         }
                         continue;
                     }
@@ -167,6 +219,18 @@ impl TreeBuilder {
                 }
 
                 Token::Character(c) => {
+                    // WHATWG: Ignore whitespace characters if not inside body or text-bearing element
+                    if c.is_whitespace() {
+                        let curr = self.current_node();
+                        if curr == self.tree.root_id()
+                            || matches!(
+                                self.tree.get_node(curr).map(|n| &n.data),
+                                Some(NodeData::Element(data)) if data.tag_name == "html"
+                            )
+                        {
+                            continue;
+                        }
+                    }
                     self.ensure_html_and_body("p");
                     self.text_buffer.push(c);
                 }

@@ -20,6 +20,7 @@ enum State {
     SelfClosingStartTag,
     MarkupDeclarationOpen,
     Comment,
+    BogusComment,
     Doctype,
 }
 
@@ -169,7 +170,7 @@ impl Tokenizer {
                             // Bogus comment
                             self.next_char();
                             self.buffer.clear();
-                            self.state = State::Comment;
+                            self.state = State::BogusComment;
                         }
                         Some(c) if c.is_ascii_alphabetic() => {
                             self.is_end_tag = false;
@@ -177,11 +178,8 @@ impl Tokenizer {
                             self.buffer.clear();
                             self.state = State::TagName;
                         }
-                        Some(c) => {
-                            self.state = State::Data;
-                            return Token::Character(c);
-                        }
-                        None => {
+                        _ => {
+                            // WHATWG §13.2.5.8: Emit '<' as character, transition to Data state without consuming peeked char
                             self.state = State::Data;
                             return Token::Character('<');
                         }
@@ -206,7 +204,7 @@ impl Tokenizer {
                         _ => {
                             // Bogus comment
                             self.buffer.clear();
-                            self.state = State::Comment;
+                            self.state = State::BogusComment;
                         }
                     }
                 }
@@ -417,6 +415,10 @@ impl Tokenizer {
                             self.commit_attribute();
                             self.state = State::BeforeAttributeName;
                         }
+                        Some('/') if self.peek() == Some('>') => {
+                            self.commit_attribute();
+                            self.state = State::SelfClosingStartTag;
+                        }
                         Some('>') => {
                             self.commit_attribute();
                             self.state = State::Data;
@@ -495,26 +497,47 @@ impl Tokenizer {
                     } else {
                         // Bogus comment
                         self.buffer.clear();
-                        self.state = State::Comment;
+                        self.state = State::BogusComment;
                     }
                 }
 
                 State::Comment => {
                     let mut comment_content = String::new();
                     while let Some(c) = self.next_char() {
-                        if c == '-' && self.peek() == Some('-') {
-                            self.next_char(); // consume second -
-                            if self.peek() == Some('>') {
+                        if c == '-' {
+                            let mut hyphen_count = 1;
+                            while self.peek() == Some('-') {
+                                self.next_char();
+                                hyphen_count += 1;
+                            }
+                            if hyphen_count >= 2 && self.peek() == Some('>') {
                                 self.next_char(); // consume >
+                                for _ in 2..hyphen_count {
+                                    comment_content.push('-');
+                                }
                                 self.state = State::Data;
                                 return Token::Comment(comment_content);
                             } else {
-                                comment_content.push('-');
-                                comment_content.push('-');
+                                for _ in 0..hyphen_count {
+                                    comment_content.push('-');
+                                }
                             }
                         } else {
                             comment_content.push(c);
                         }
+                    }
+                    self.state = State::Data;
+                    return Token::Comment(comment_content);
+                }
+
+                State::BogusComment => {
+                    let mut comment_content = String::new();
+                    while let Some(c) = self.next_char() {
+                        if c == '>' {
+                            self.state = State::Data;
+                            return Token::Comment(comment_content);
+                        }
+                        comment_content.push(c);
                     }
                     self.state = State::Data;
                     return Token::Comment(comment_content);

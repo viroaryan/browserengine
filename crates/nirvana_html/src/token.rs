@@ -18,13 +18,12 @@ impl TagData {
 
     pub fn add_attribute(&mut self, name: &str, value: &str) {
         let name_lower = name.to_ascii_lowercase();
-        if let Some(existing) = self
+        // WHATWG §13.2.5.33: When an attribute is already present, leave first value unchanged
+        if !self
             .attributes
-            .iter_mut()
-            .find(|(k, _)| k.to_ascii_lowercase() == name_lower)
+            .iter()
+            .any(|(k, _)| k.to_ascii_lowercase() == name_lower)
         {
-            existing.1 = value.to_string();
-        } else {
             self.attributes.push((name_lower, value.to_string()));
         }
     }

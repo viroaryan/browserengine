@@ -38,3 +38,34 @@ fn test_tree_void_elements_do_not_capture_children() {
     let div_children = tree.children(div_id);
     assert_eq!(div_children.len(), 2); // <img> and <p> are siblings under <div>
 }
+
+#[test]
+fn test_standard_html_with_newlines_and_head_body_siblings() {
+    let html = "<!DOCTYPE html>\n<html>\n  <head><title>Test</title></head>\n  <body class=\"main\"><p>Hi</p></body>\n</html>\n";
+    let tokens = Tokenizer::new(html).tokenize_all();
+    let tree = TreeBuilder::new(tokens).build();
+
+    let root = tree.root_id();
+    let root_children = tree.children(root);
+    assert_eq!(root_children.len(), 1); // Only <html> under Document root
+
+    let html_id = root_children[0];
+    let html_children = tree.children(html_id);
+    assert_eq!(html_children.len(), 2); // <head> and <body> as siblings
+
+    let head_id = html_children[0];
+    let body_id = html_children[1];
+
+    if let nirvana_dom::node::NodeData::Element(data) = &tree.get_node(head_id).unwrap().data {
+        assert_eq!(data.tag_name, "head");
+    } else {
+        panic!("First child must be head");
+    }
+
+    if let nirvana_dom::node::NodeData::Element(data) = &tree.get_node(body_id).unwrap().data {
+        assert_eq!(data.tag_name, "body");
+        assert_eq!(tree.get_attribute(body_id, "class"), Some("main"));
+    } else {
+        panic!("Second child must be body");
+    }
+}
