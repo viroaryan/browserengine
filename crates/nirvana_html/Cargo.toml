@@ -1,0 +1,13 @@
+[package]
+name = "nirvana_html"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nirvana_core = { path = "../nirvana_core" }
+nirvana_dom = { path = "../nirvana_dom" }
