@@ -3,10 +3,26 @@
 use std::marker::PhantomData;
 
 /// Strongly-typed identifier pointing to an element in an `Arena<T>`.
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub struct Id<T> {
     index: u32,
     _marker: PhantomData<fn() -> T>,
+}
+
+impl<T> PartialEq for Id<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+    }
+}
+
+impl<T> Eq for Id<T> {}
+
+impl<T> std::hash::Hash for Id<T> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+    }
 }
 
 impl<T> Copy for Id<T> {}
