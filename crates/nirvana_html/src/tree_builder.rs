@@ -52,16 +52,12 @@ impl TreeBuilder {
     }
 
     fn is_inside_head(&self) -> bool {
-        for &elem_id in &self.open_elements {
-            if let Some(node) = self.tree.get_node(elem_id) {
-                if let NodeData::Element(data) = &node.data {
-                    if data.tag_name == "head" {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
+        self.open_elements.iter().any(|&elem_id| {
+            matches!(
+                self.tree.get_node(elem_id).map(|n| &n.data),
+                Some(NodeData::Element(data)) if data.tag_name == "head"
+            )
+        })
     }
 
     fn ensure_html_and_body(&mut self, next_tag: &str) {
@@ -157,17 +153,12 @@ impl TreeBuilder {
                     self.flush_text();
 
                     // Find matching open element in stack from the top
-                    let mut found_index = None;
-                    for (i, &elem_id) in self.open_elements.iter().enumerate().rev() {
-                        if let Some(node) = self.tree.get_node(elem_id) {
-                            if let NodeData::Element(data) = &node.data {
-                                if data.tag_name == tag.name {
-                                    found_index = Some(i);
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    let found_index = self.open_elements.iter().rposition(|&elem_id| {
+                        matches!(
+                            self.tree.get_node(elem_id).map(|n| &n.data),
+                            Some(NodeData::Element(data)) if data.tag_name == tag.name
+                        )
+                    });
 
                     if let Some(idx) = found_index {
                         // Pop elements down to and including idx

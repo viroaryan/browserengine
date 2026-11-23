@@ -24,11 +24,11 @@ pub fn decode_entities(input: &str) -> String {
                 }
             }
 
-            if found_semicolon {
-                if let Some(decoded) = decode_named_or_numeric_entity(&entity_buf) {
-                    result.push(decoded);
-                    continue;
-                }
+            if found_semicolon
+                && let Some(decoded) = decode_named_or_numeric_entity(&entity_buf)
+            {
+                result.push(decoded);
+                continue;
             }
 
             // Not an entity or unrecognized: emit raw & and accumulated chars

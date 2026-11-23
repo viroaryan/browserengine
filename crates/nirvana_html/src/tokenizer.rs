@@ -32,6 +32,7 @@ pub struct Tokenizer {
     current_attr_value: String,
     is_end_tag: bool,
     buffer: String,
+    pending_chars: Vec<char>,
 }
 
 impl Tokenizer {
@@ -63,6 +64,7 @@ impl Tokenizer {
             current_attr_value: String::new(),
             is_end_tag: false,
             buffer: String::new(),
+            pending_chars: Vec::new(),
         }
     }
 
@@ -108,6 +110,10 @@ impl Tokenizer {
     }
 
     pub fn next_token(&mut self) -> Token {
+        if !self.pending_chars.is_empty() {
+            return Token::Character(self.pending_chars.remove(0));
+        }
+
         loop {
             match self.state {
                 State::Data => {
@@ -133,8 +139,10 @@ impl Tokenizer {
                                 }
                             }
                             let decoded = decode_entities(&entity_buf);
-                            for ch in decoded.chars() {
-                                return Token::Character(ch);
+                            let mut chars = decoded.chars();
+                            if let Some(first) = chars.next() {
+                                self.pending_chars.extend(chars);
+                                return Token::Character(first);
                             }
                         }
                         Some(c) => {
