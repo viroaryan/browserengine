@@ -52,6 +52,7 @@ impl<T> Id<T> {
 #[derive(Debug, Clone)]
 pub struct Arena<T> {
     items: Vec<Option<T>>,
+    active_count: usize,
 }
 
 impl<T> Default for Arena<T> {
@@ -62,12 +63,16 @@ impl<T> Default for Arena<T> {
 
 impl<T> Arena<T> {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self {
+            items: Vec::new(),
+            active_count: 0,
+        }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: Vec::with_capacity(capacity),
+            active_count: 0,
         }
     }
 
@@ -75,6 +80,7 @@ impl<T> Arena<T> {
     pub fn alloc(&mut self, item: T) -> Id<T> {
         let index = self.items.len() as u32;
         self.items.push(Some(item));
+        self.active_count += 1;
         Id::from_raw(index)
     }
 
@@ -90,17 +96,21 @@ impl<T> Arena<T> {
 
     #[inline]
     pub fn remove(&mut self, id: Id<T>) -> Option<T> {
-        self.items.get_mut(id.index as usize)?.take()
+        let opt = self.items.get_mut(id.index as usize)?.take();
+        if opt.is_some() {
+            self.active_count -= 1;
+        }
+        opt
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.items.iter().filter(|item| item.is_some()).count()
+        self.active_count
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.active_count == 0
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Id<T>, &T)> {

@@ -5,5 +5,8 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 nirvana_core = { path = "../nirvana_core" }

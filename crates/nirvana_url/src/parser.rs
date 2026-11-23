@@ -39,13 +39,21 @@ impl Url {
         }
         let scheme = scheme_str.to_ascii_lowercase();
 
-        let mut remainder = &input[colon_pos + 1..];
+        let raw_remainder = &input[colon_pos + 1..];
+        let is_special = matches!(scheme.as_str(), "http" | "https" | "ws" | "wss" | "ftp");
+
+        // WHATWG: for special schemes, normalize backslashes to forward slashes
+        let normalized_remainder: String;
+        let mut remainder = if is_special && raw_remainder.contains('\\') {
+            normalized_remainder = raw_remainder.replace('\\', "/");
+            normalized_remainder.as_str()
+        } else {
+            raw_remainder
+        };
 
         // 2. Parse authority (host & port) if present
         let mut host = None;
         let mut custom_port = None;
-
-        let is_special = matches!(scheme.as_str(), "http" | "https" | "ws" | "wss" | "ftp");
 
         if scheme == "file" {
             // file:///path or file://localhost/path or file:/path
@@ -64,7 +72,7 @@ impl Url {
             remainder = &remainder[2..];
             // Find end of authority: '/', '?', '#' or end of string
             let auth_end = remainder
-                .find(|c| c == '/' || c == '?' || c == '#')
+                .find(['/', '?', '#'])
                 .unwrap_or(remainder.len());
             let authority = &remainder[..auth_end];
             remainder = &remainder[auth_end..];
@@ -75,8 +83,22 @@ impl Url {
                 None => authority,
             };
 
-            // Parse host and optional :port
-            if let Some(colon) = host_port.rfind(':') {
+            // Parse host and optional :port (supporting IPv6 in brackets [::1])
+            if host_port.starts_with('[') {
+                if let Some(bracket_end) = host_port.find(']') {
+                    let h = &host_port[..=bracket_end];
+                    let after = &host_port[bracket_end + 1..];
+                    if let Some(port_str) = after.strip_prefix(':') {
+                        let parsed_port = port_str.parse::<u16>().map_err(|_| UrlError::InvalidPort)?;
+                        custom_port = Some(parsed_port);
+                    } else if !after.is_empty() {
+                        return Err(UrlError::InvalidHost);
+                    }
+                    host = Some(h.to_string());
+                } else {
+                    return Err(UrlError::InvalidHost);
+                }
+            } else if let Some(colon) = host_port.rfind(':') {
                 let h = &host_port[..colon];
                 let p = &host_port[colon + 1..];
                 if h.is_empty() {
@@ -96,7 +118,7 @@ impl Url {
         }
 
         // Resolve port
-        let port = custom_port.unwrap_or_else(|| match scheme.as_str() {
+        let port = custom_port.unwrap_or(match scheme.as_str() {
             "http" => 80,
             "https" => 443,
             "ws" => 80,
@@ -178,12 +200,13 @@ impl Url {
 /// Normalizes path segments removing '.' and resolving '..' dot segments.
 fn normalize_path(raw: &str) -> String {
     let starts_with_slash = raw.starts_with('/');
-    let ends_with_slash = raw.ends_with('/') && raw.len() > 1;
+    let raw_segments: Vec<&str> = raw.split('/').collect();
+    let ends_with_slash = raw.ends_with('/')
+        || raw_segments.last().is_some_and(|s| *s == "." || *s == "..");
 
-    let segments = raw.split('/');
     let mut normalized: Vec<&str> = Vec::new();
 
-    for seg in segments {
+    for seg in raw_segments {
         match seg {
             "" | "." => continue,
             ".." => {

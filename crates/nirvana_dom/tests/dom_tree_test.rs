@@ -20,8 +20,8 @@ fn test_dom_tree_construction_and_traversal() {
     assert_eq!(tree.parent(p), Some(body));
     assert_eq!(tree.children(body), vec![p]);
     assert_eq!(tree.children(p), vec![text]);
-    assert_eq!(tree.node_type(p), NodeType::Element);
-    assert_eq!(tree.node_type(text), NodeType::Text);
+    assert_eq!(tree.node_type(p), Some(NodeType::Element));
+    assert_eq!(tree.node_type(text), Some(NodeType::Text));
 }
 
 #[test]
@@ -45,4 +45,19 @@ fn test_dom_element_attributes() {
     assert_eq!(tree.get_attribute(link, "href"), Some("https://nirvanabrowser.org"));
     assert_eq!(tree.get_attribute(link, "target"), Some("_blank"));
     assert_eq!(tree.get_attribute(link, "id"), None);
+}
+
+#[test]
+fn test_cannot_append_document_root() {
+    let mut tree = DomTree::new();
+    let root = tree.root_id();
+    let div = tree.create_element("div");
+    assert!(matches!(tree.append_child(div, root), Err(DomError::CannotAppendDocumentRoot)));
+}
+
+#[test]
+fn test_invalid_node_id_returns_none_type() {
+    let tree = DomTree::new();
+    let invalid_id = nirvana_core::arena::Id::from_raw(9999);
+    assert_eq!(tree.node_type(invalid_id), None);
 }

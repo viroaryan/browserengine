@@ -27,10 +27,9 @@ impl ElementData {
     }
 
     pub fn get_attribute(&self, name: &str) -> Option<&str> {
-        let name_lower = name.to_ascii_lowercase();
         self.attributes
             .iter()
-            .find(|(k, _)| k.to_ascii_lowercase() == name_lower)
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
             .map(|(_, v)| v.as_str())
     }
 

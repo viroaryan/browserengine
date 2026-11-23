@@ -9,6 +9,7 @@ pub enum DomError {
     CycleDetected,
     NotAnElement,
     CannotAppendToLeafNode,
+    CannotAppendDocumentRoot,
 }
 
 impl std::fmt::Display for DomError {
@@ -18,6 +19,7 @@ impl std::fmt::Display for DomError {
             Self::CycleDetected => write!(f, "Cycle detected in DOM tree mutation"),
             Self::NotAnElement => write!(f, "Target node is not an element"),
             Self::CannotAppendToLeafNode => write!(f, "Cannot append children to a text or comment node"),
+            Self::CannotAppendDocumentRoot => write!(f, "Cannot append document root as a child node"),
         }
     }
 }
@@ -71,11 +73,8 @@ impl DomTree {
         self.arena.get(id)?.parent
     }
 
-    pub fn node_type(&self, id: NodeId) -> NodeType {
-        self.arena
-            .get(id)
-            .map(|n| n.node_type())
-            .unwrap_or(NodeType::Document)
+    pub fn node_type(&self, id: NodeId) -> Option<NodeType> {
+        self.arena.get(id).map(|n| n.node_type())
     }
 
     pub fn children(&self, parent: NodeId) -> Vec<NodeId> {
@@ -117,6 +116,15 @@ impl DomTree {
     pub fn append_child(&mut self, parent: NodeId, child: NodeId) -> Result<(), DomError> {
         if parent == child {
             return Err(DomError::CycleDetected);
+        }
+
+        if child == self.root
+            || matches!(
+                self.arena.get(child).map(|n| &n.data),
+                Some(NodeData::Document)
+            )
+        {
+            return Err(DomError::CannotAppendDocumentRoot);
         }
 
         // Verify parent and child exist
@@ -185,27 +193,21 @@ impl DomTree {
             None => return Err(DomError::NodeNotFound),
         };
 
-        if let Some(parent_id) = parent {
-            if let Some(parent_node) = self.arena.get_mut(parent_id) {
-                if parent_node.first_child == Some(node_id) {
-                    parent_node.first_child = next;
-                }
-                if parent_node.last_child == Some(node_id) {
-                    parent_node.last_child = prev;
-                }
+        if let Some(parent_node) = parent.and_then(|id| self.arena.get_mut(id)) {
+            if parent_node.first_child == Some(node_id) {
+                parent_node.first_child = next;
+            }
+            if parent_node.last_child == Some(node_id) {
+                parent_node.last_child = prev;
             }
         }
 
-        if let Some(prev_id) = prev {
-            if let Some(prev_node) = self.arena.get_mut(prev_id) {
-                prev_node.next_sibling = next;
-            }
+        if let Some(prev_node) = prev.and_then(|id| self.arena.get_mut(id)) {
+            prev_node.next_sibling = next;
         }
 
-        if let Some(next_id) = next {
-            if let Some(next_node) = self.arena.get_mut(next_id) {
-                next_node.prev_sibling = prev;
-            }
+        if let Some(next_node) = next.and_then(|id| self.arena.get_mut(id)) {
+            next_node.prev_sibling = prev;
         }
 
         if let Some(node) = self.arena.get_mut(node_id) {

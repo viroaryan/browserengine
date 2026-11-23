@@ -51,3 +51,27 @@ fn test_url_invalid_input() {
     assert!(matches!(Url::parse("not-a-url"), Err(UrlError::MissingScheme)));
     assert!(matches!(Url::parse("://bad"), Err(UrlError::InvalidScheme)));
 }
+
+#[test]
+fn test_url_directory_dot_segment_trailing_slash_and_backslash() {
+    let url1 = Url::parse("http://example.com/a/b/..").unwrap();
+    assert_eq!(url1.path(), "/a/");
+
+    let url2 = Url::parse("http://example.com/a/b/.").unwrap();
+    assert_eq!(url2.path(), "/a/b/");
+
+    let url3 = Url::parse(r"http://example.com\path\file.html").unwrap();
+    assert_eq!(url3.host(), Some("example.com"));
+    assert_eq!(url3.path(), "/path/file.html");
+}
+
+#[test]
+fn test_url_ipv6_host() {
+    let url1 = Url::parse("http://[::1]/").unwrap();
+    assert_eq!(url1.host(), Some("[::1]"));
+    assert_eq!(url1.port(), 80);
+
+    let url2 = Url::parse("http://[2001:db8::1]:8080/test").unwrap();
+    assert_eq!(url2.host(), Some("[2001:db8::1]"));
+    assert_eq!(url2.port(), 8080);
+}
