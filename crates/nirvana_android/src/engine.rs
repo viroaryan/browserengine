@@ -57,6 +57,7 @@ pub struct NirvanaEngine {
     storage_backend: std::rc::Rc<std::cell::RefCell<nirvana_js::storage::StorageBackend>>,
     csp_policy: Option<nirvana_net::security::CspPolicy>,
     last_metrics: FrameMetrics,
+    adblock: std::rc::Rc<std::cell::RefCell<nirvana_adblock::AdBlockEngine>>,
 }
 
 impl NirvanaEngine {
@@ -88,7 +89,43 @@ impl NirvanaEngine {
             storage_backend: std::rc::Rc::new(std::cell::RefCell::new(nirvana_js::storage::StorageBackend::new())),
             csp_policy: None,
             last_metrics: FrameMetrics::default(),
+            adblock: std::rc::Rc::new(std::cell::RefCell::new(nirvana_adblock::AdBlockEngine::new())),
         }
+    }
+
+    /// Returns reference to the sovereign AdBlock engine.
+    #[inline]
+    pub fn adblock_engine(&self) -> std::rc::Rc<std::cell::RefCell<nirvana_adblock::AdBlockEngine>> {
+        self.adblock.clone()
+    }
+
+    /// Returns the total number of blocked ad and tracker requests.
+    #[inline]
+    pub fn blocked_requests_count(&self) -> u64 {
+        self.adblock.borrow().blocked_count()
+    }
+
+    /// Enables or disables ad blocking globally.
+    #[inline]
+    pub fn set_adblock_enabled(&mut self, enabled: bool) {
+        self.adblock.borrow_mut().set_enabled(enabled);
+    }
+
+    /// Returns true if ad blocking is currently active.
+    #[inline]
+    pub fn is_adblock_enabled(&self) -> bool {
+        self.adblock.borrow().is_enabled()
+    }
+
+    /// Dynamically parses and registers a custom AdBlock Plus / uBlock filter rule.
+    pub fn add_adblock_rule(&mut self, rule: &str) {
+        self.adblock.borrow_mut().add_rule(rule);
+    }
+
+    /// Resets the count of blocked requests.
+    #[inline]
+    pub fn reset_blocked_count(&self) {
+        self.adblock.borrow().reset_blocked_count();
     }
 
     /// Returns the high-resolution performance metrics from the most recent rendering cycle.
@@ -139,6 +176,41 @@ impl NirvanaEngine {
     #[inline]
     pub fn layout_root(&self) -> Option<&LayoutBox> {
         self.layout_root.as_ref()
+    }
+
+    /// Returns a reference to the computed style tree, if any.
+    #[inline]
+    pub fn style_tree(&self) -> Option<&StyleTree> {
+        self.style_tree.as_ref()
+    }
+
+    /// Returns the first `NodeId` whose element matches the given class name.
+    pub fn find_node_by_class(&self, class_name: &str) -> Option<NodeId> {
+        let dom = self.dom.as_ref()?;
+        let mut stack = vec![dom.root_id()];
+        while let Some(node_id) = stack.pop() {
+            if let Some(node) = dom.get_node(node_id)
+                && let NodeData::Element(ref elem) = node.data
+                && let Some(classes) = elem.get_attribute("class")
+                && classes.split_whitespace().any(|c| c == class_name)
+            {
+                return Some(node_id);
+            }
+            for child in dom.children(node_id) {
+                stack.push(child);
+            }
+        }
+        None
+    }
+
+    /// Checks if a given DOM node is present in the computed layout tree.
+    /// Elements with `display: none` are completely omitted.
+    pub fn is_node_in_layout(&self, node_id: NodeId) -> bool {
+        if let Some(ref root) = self.layout_root {
+            find_box_for_node(root, node_id).is_some()
+        } else {
+            false
+        }
     }
 
     /// Loads and parses an HTML document string, with optional user/author CSS.
@@ -255,6 +327,16 @@ impl NirvanaEngine {
                 && !csp.is_allowed(nirvana_net::security::CspDirective::StyleSrc, &css_url, &doc_origin)
             {
                 eprintln!("Warning: blocked stylesheet by CSP at {css_url}");
+                continue;
+            }
+
+            // AdBlock check
+            if self.adblock.borrow().should_block(
+                &css_url,
+                self.current_url.as_deref(),
+                nirvana_adblock::ContentType(nirvana_adblock::ContentType::STYLESHEET),
+            ) {
+                eprintln!("AdBlock: blocked ad stylesheet at {css_url}");
                 continue;
             }
 
@@ -468,6 +550,16 @@ impl NirvanaEngine {
                     eprintln!("Warning: blocked image by CSP at {img_url}");
                     continue;
                 }
+            }
+
+            // AdBlock check
+            if self.adblock.borrow().should_block(
+                &img_url,
+                self.current_url.as_deref(),
+                nirvana_adblock::ContentType(nirvana_adblock::ContentType::IMAGE),
+            ) {
+                eprintln!("AdBlock: blocked ad image at {img_url}");
+                continue;
             }
 
             // Check if canonical URL is already cached
@@ -837,6 +929,14 @@ impl NirvanaEngine {
         if let Some(ref auth) = self.author_css {
             sheets.push(auth.clone());
         }
+        // AdBlock Cosmetic Filtering: inject element-hiding CSS
+        if let Some(cosmetic_css) = self
+            .adblock
+            .borrow()
+            .cosmetic_stylesheet(self.current_url.as_deref())
+        {
+            sheets.push(parse_css(&cosmetic_css));
+        }
         self.stylesheets = sheets;
     }
 
@@ -846,6 +946,12 @@ impl NirvanaEngine {
         base_url_str: Option<&str>,
         js: &mut nirvana_js::JsRuntime,
     ) {
+        // Inject scriptlet defusers (Google Analytics, GTM stubs) at document_start
+        if self.adblock.borrow().is_enabled() {
+            let defusers = self.adblock.borrow().defuser_script();
+            let _ = js.eval(defusers);
+        }
+
         let scripts = {
             let dom = shared_dom.borrow();
             discover_scripts(&dom)
@@ -881,6 +987,16 @@ impl NirvanaEngine {
                             eprintln!("Warning: blocked script by CSP at {script_url}");
                             continue;
                         }
+                    }
+
+                    // AdBlock check
+                    if self.adblock.borrow().should_block(
+                        &script_url,
+                        self.current_url.as_deref(),
+                        nirvana_adblock::ContentType(nirvana_adblock::ContentType::SCRIPT),
+                    ) {
+                        eprintln!("AdBlock: blocked ad/tracking script at {script_url}");
+                        continue;
                     }
 
                     let script_cookie = self.cookie_jar.borrow().get_cookie_header_value(&script_url, true);

@@ -295,6 +295,51 @@ class NirvanaEngine(
         }
     }
 
+    /**
+     * Retrieves the total count of blocked ad and tracker network requests.
+     */
+    @Synchronized
+    fun getBlockedRequestsCount(): Long {
+        checkOpen()
+        return nativeGetBlockedCount(nativePtr)
+    }
+
+    /**
+     * Enables or disables sovereign ad blocking.
+     */
+    @Synchronized
+    fun setAdBlockEnabled(enabled: Boolean) {
+        checkOpen()
+        nativeSetAdBlockEnabled(nativePtr, enabled)
+    }
+
+    /**
+     * Returns true if sovereign ad blocking is currently active.
+     */
+    @Synchronized
+    fun isAdBlockEnabled(): Boolean {
+        checkOpen()
+        return nativeIsAdBlockEnabled(nativePtr)
+    }
+
+    /**
+     * Parses and registers a custom AdBlock Plus / uBlock filter rule string.
+     */
+    @Synchronized
+    fun addAdBlockRule(rule: String) {
+        checkOpen()
+        nativeAddAdBlockRule(nativePtr, rule)
+    }
+
+    /**
+     * Resets the blocked requests counter to zero.
+     */
+    @Synchronized
+    fun resetBlockedCount() {
+        checkOpen()
+        nativeResetBlockedCount(nativePtr)
+    }
+
     private fun parseHitTargetJson(json: String): HitTarget? {
         val tagMatch = Regex("\"tag\"\\s*:\\s*\"([^\"]*)\"").find(json) ?: return null
         val tag = tagMatch.groupValues[1]
@@ -355,6 +400,11 @@ class NirvanaEngine(
     private external fun nativeClearStorage(enginePtr: Long)
     private external fun nativeClearImageCache(enginePtr: Long)
     private external fun nativeGetFrameMetrics(enginePtr: Long): FloatArray?
+    private external fun nativeGetBlockedCount(enginePtr: Long): Long
+    private external fun nativeSetAdBlockEnabled(enginePtr: Long, enabled: Boolean)
+    private external fun nativeIsAdBlockEnabled(enginePtr: Long): Boolean
+    private external fun nativeAddAdBlockRule(enginePtr: Long, rule: String)
+    private external fun nativeResetBlockedCount(enginePtr: Long)
 
     companion object {
         init {

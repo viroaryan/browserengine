@@ -648,6 +648,93 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetFr
     result.unwrap_or(std::ptr::null_mut())
 }
 
+/// Returns the total count of blocked ad and tracker requests.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetBlockedCount(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jlong {
+    let result = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            engine.blocked_requests_count() as jlong
+        } else {
+            0
+        }
+    });
+    result.unwrap_or(0)
+}
+
+/// Enables or disables sovereign ad blocking.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeSetAdBlockEnabled(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    enabled: jboolean,
+) {
+    let _ = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            engine.set_adblock_enabled(enabled != 0);
+        }
+    });
+}
+
+/// Checks whether ad blocking is enabled.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeIsAdBlockEnabled(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jboolean {
+    let result = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            if engine.is_adblock_enabled() {
+                1
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    });
+    result.unwrap_or(0)
+}
+
+/// Parses and registers a custom AdBlock Plus / uBlock filter rule string.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeAddAdBlockRule(
+    mut env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    rule: JString,
+) {
+    let _ = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return;
+        };
+        let Ok(rule_str) = env.get_string(&rule) else {
+            return;
+        };
+        let rule_cow = rule_str.to_string_lossy();
+        engine.add_adblock_rule(&rule_cow);
+    }));
+}
+
+/// Resets the blocked requests counter to zero.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeResetBlockedCount(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) {
+    let _ = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            engine.reset_blocked_count();
+        }
+    });
+}
+
 fn escape_json(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
