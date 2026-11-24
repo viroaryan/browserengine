@@ -1,0 +1,24 @@
+[package]
+name = "nirvana_android"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+name = "nirvana_engine"
+crate-type = ["cdylib", "rlib"]
+
+[lints.rust]
+unsafe_code = "allow"
+
+[dependencies]
+nirvana_core = { path = "../nirvana_core" }
+nirvana_url = { path = "../nirvana_url" }
+nirvana_dom = { path = "../nirvana_dom" }
+nirvana_html = { path = "../nirvana_html" }
+nirvana_css = { path = "../nirvana_css" }
+nirvana_style = { path = "../nirvana_style" }
+nirvana_layout = { path = "../nirvana_layout" }
+nirvana_gfx = { path = "../nirvana_gfx" }
+jni = { version = "0.21.1", default-features = false }
