@@ -59,3 +59,31 @@ fn test_engine_pointer_input_lifecycle() {
         let _ = Box::from_raw(raw_ptr);
     }
 }
+
+#[test]
+fn test_engine_pointer_security_lifecycle() {
+    let engine = Box::new(NirvanaEngine::new(400, 300));
+    let raw_ptr = Box::into_raw(engine);
+
+    unsafe {
+        let engine_ref = raw_ptr.as_mut().expect("valid pointer");
+        engine_ref.load_html("<p>Security Test</p>", None);
+
+        let _ = engine_ref.evaluate_js("localStorage.setItem('k', 'v');");
+        assert_eq!(
+            engine_ref.evaluate_js("localStorage.getItem('k')").as_deref(),
+            Ok("v")
+        );
+
+        engine_ref.clear_storage();
+        assert_eq!(
+            engine_ref.evaluate_js("localStorage.getItem('k')").as_deref(),
+            Ok("null")
+        );
+
+        engine_ref.clear_cookies();
+        assert_eq!(engine_ref.cookie_jar().borrow().all_cookies().len(), 0);
+
+        let _ = Box::from_raw(raw_ptr);
+    }
+}

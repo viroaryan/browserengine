@@ -575,6 +575,34 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeStepT
     result.unwrap_or(0)
 }
 
+/// Clears all cookies stored in the engine's sovereign CookieJar.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeClearCookies(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) {
+    let _ = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            engine.clear_cookies();
+        }
+    });
+}
+
+/// Clears all local and session Web Storage across all origins.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeClearStorage(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) {
+    let _ = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            engine.clear_storage();
+        }
+    });
+}
+
 fn escape_json(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {

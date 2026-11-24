@@ -34,12 +34,22 @@ impl ProtocolHandler for HttpHandler {
     }
 
     fn fetch(&self, url: &Url) -> Result<Response, NetError> {
+        self.fetch_with_headers(url, &[])
+    }
+
+    fn fetch_with_headers(&self, url: &Url, req_headers: &[(&str, &str)]) -> Result<Response, NetError> {
         let url_str = url.as_str();
 
-        let resp = self
+        let mut req = self
             .agent
             .get(&url_str)
-            .header("User-Agent", "NirvanaBrowser/0.1.0 (Android; Rust Engine)")
+            .header("User-Agent", "NirvanaBrowser/0.1.0 (Android; Rust Engine)");
+
+        for (name, val) in req_headers {
+            req = req.header(*name, *val);
+        }
+
+        let resp = req
             .call()
             .map_err(|e| NetError::NetworkFailure(e.to_string()))?;
 

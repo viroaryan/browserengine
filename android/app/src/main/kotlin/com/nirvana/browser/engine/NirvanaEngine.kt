@@ -237,6 +237,24 @@ class NirvanaEngine(
         return nativeStepTimers(nativePtr, deltaMs)
     }
 
+    /**
+     * Clears all cookies stored in the sovereign CookieJar.
+     */
+    @Synchronized
+    fun clearCookies() {
+        checkOpen()
+        nativeClearCookies(nativePtr)
+    }
+
+    /**
+     * Clears all local and session Web Storage across all origins.
+     */
+    @Synchronized
+    fun clearStorage() {
+        checkOpen()
+        nativeClearStorage(nativePtr)
+    }
+
     private fun parseHitTargetJson(json: String): HitTarget? {
         val tagMatch = Regex("\"tag\"\\s*:\\s*\"([^\"]*)\"").find(json) ?: return null
         val tag = tagMatch.groupValues[1]
@@ -293,6 +311,8 @@ class NirvanaEngine(
     private external fun nativeGetCurrentUrl(enginePtr: Long): String?
     private external fun nativeEvaluateJs(enginePtr: Long, script: String): String?
     private external fun nativeStepTimers(enginePtr: Long, deltaMs: Long): Int
+    private external fun nativeClearCookies(enginePtr: Long)
+    private external fun nativeClearStorage(enginePtr: Long)
 
     companion object {
         init {

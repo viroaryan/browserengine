@@ -52,11 +52,18 @@ impl ResourceLoader {
     /// Fetches a resource from the given parsed `Url`.
     /// Checks in-memory cache first, then dispatches to the matching protocol handler.
     pub fn fetch(&self, url: &Url) -> Result<Response, NetError> {
+        self.fetch_with_headers(url, &[])
+    }
+
+    /// Fetches a resource from the given parsed `Url` with custom request headers (e.g. `Cookie: ...`).
+    pub fn fetch_with_headers(&self, url: &Url, headers: &[(&str, &str)]) -> Result<Response, NetError> {
         let url_str = url.as_str();
 
-        // 1. Check cache
-        if let Some(cached) = self.cache.get(&url_str) {
-            return Ok(cached);
+        // 1. Check cache (only when no dynamic request headers like Cookie are provided)
+        if headers.is_empty() {
+            if let Some(cached) = self.cache.get(&url_str) {
+                return Ok(cached);
+            }
         }
 
         // 2. Find matching handler
@@ -67,10 +74,10 @@ impl ResourceLoader {
             .ok_or_else(|| NetError::UnsupportedScheme(url.scheme().to_string()))?;
 
         // 3. Fetch resource
-        let response = handler.fetch(url)?;
+        let response = handler.fetch_with_headers(url, headers)?;
 
-        // 4. Store in cache on success (2xx HTTP / OK status)
-        if response.status >= 200 && response.status < 300 {
+        // 4. Store in cache on success (2xx HTTP / OK status) if no request headers
+        if response.status >= 200 && response.status < 300 && headers.is_empty() {
             self.cache.insert(url_str, response.clone());
         }
 

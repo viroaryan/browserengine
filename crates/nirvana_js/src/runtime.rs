@@ -40,13 +40,25 @@ impl Default for JsRuntime {
 
 impl JsRuntime {
     pub fn new() -> Self {
+        Self::with_storage_and_cookies(
+            Rc::new(RefCell::new(StorageBackend::new())),
+            "null",
+            Rc::new(RefCell::new(nirvana_net::cookie::CookieJar::new())),
+            "about:blank",
+        )
+    }
+
+    pub fn with_storage_and_cookies(
+        storage_backend: Rc<RefCell<StorageBackend>>,
+        origin: &str,
+        cookie_jar: Rc<RefCell<nirvana_net::cookie::CookieJar>>,
+        url: &str,
+    ) -> Self {
         let mut context = Context::default();
         let log_store: LogStore = Arc::new(Mutex::new(Vec::new()));
         let timer_queue = TimerQueue::new();
-        let storage_backend = Rc::new(RefCell::new(StorageBackend::new()));
-        let current_origin = Rc::new(RefCell::new("null".to_string()));
-        let current_url = Rc::new(RefCell::new("about:blank".to_string()));
-        let cookie_jar = Rc::new(RefCell::new(nirvana_net::cookie::CookieJar::new()));
+        let current_origin = Rc::new(RefCell::new(origin.to_string()));
+        let current_url = Rc::new(RefCell::new(url.to_string()));
 
         let _ = init_console(&mut context, log_store.clone());
         let _ = init_timers(&mut context, timer_queue.clone());
@@ -75,9 +87,29 @@ impl JsRuntime {
         storage_backend: Rc<RefCell<StorageBackend>>,
         origin: &str,
     ) -> Self {
-        let mut runtime = Self::new();
-        runtime.storage_backend = storage_backend;
-        runtime.set_origin(origin);
+        let mut runtime = Self::with_storage_and_cookies(
+            storage_backend,
+            origin,
+            Rc::new(RefCell::new(nirvana_net::cookie::CookieJar::new())),
+            "about:blank",
+        );
+        let _ = runtime.bind_dom(dom);
+        runtime
+    }
+
+    pub fn with_full_context(
+        dom: SharedDom,
+        storage_backend: Rc<RefCell<StorageBackend>>,
+        origin: &str,
+        cookie_jar: Rc<RefCell<nirvana_net::cookie::CookieJar>>,
+        url: &str,
+    ) -> Self {
+        let mut runtime = Self::with_storage_and_cookies(
+            storage_backend,
+            origin,
+            cookie_jar,
+            url,
+        );
         let _ = runtime.bind_dom(dom);
         runtime
     }

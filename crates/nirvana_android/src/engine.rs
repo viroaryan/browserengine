@@ -43,6 +43,8 @@ pub struct NirvanaEngine {
     input_buffers: HashMap<NodeId, InputBuffer>,
     shared_dom: Option<std::rc::Rc<std::cell::RefCell<DomTree>>>,
     js_runtime: Option<nirvana_js::JsRuntime>,
+    cookie_jar: std::rc::Rc<std::cell::RefCell<nirvana_net::cookie::CookieJar>>,
+    storage_backend: std::rc::Rc<std::cell::RefCell<nirvana_js::storage::StorageBackend>>,
 }
 
 impl NirvanaEngine {
@@ -68,6 +70,8 @@ impl NirvanaEngine {
             input_buffers: HashMap::new(),
             shared_dom: None,
             js_runtime: None,
+            cookie_jar: std::rc::Rc::new(std::cell::RefCell::new(nirvana_net::cookie::CookieJar::new())),
+            storage_backend: std::rc::Rc::new(std::cell::RefCell::new(nirvana_js::storage::StorageBackend::new())),
         }
     }
 
@@ -120,7 +124,20 @@ impl NirvanaEngine {
 
         // Initialize SharedDom and JsRuntime
         let shared_dom = std::rc::Rc::new(std::cell::RefCell::new(dom));
-        let mut js = nirvana_js::JsRuntime::with_dom(shared_dom.clone());
+        let url_str = self.current_url.as_deref().unwrap_or("about:blank");
+        let origin = if let Ok(u) = Url::parse(url_str) {
+            nirvana_net::security::Origin::from_url(&u).as_string()
+        } else {
+            "null".to_string()
+        };
+
+        let mut js = nirvana_js::JsRuntime::with_full_context(
+            shared_dom.clone(),
+            self.storage_backend.clone(),
+            &origin,
+            self.cookie_jar.clone(),
+            url_str,
+        );
 
         let base_url = self.current_url.clone();
         self.fetch_and_run_scripts(&shared_dom, base_url.as_deref(), &mut js);
@@ -135,16 +152,41 @@ impl NirvanaEngine {
     /// Fetches document, extracts and fetches linked external stylesheets, and renders.
     pub fn navigate(&mut self, url_str: &str) -> Result<(), String> {
         let url = Url::parse(url_str).map_err(|e| e.to_string())?;
-        let resp = self.loader.fetch(&url).map_err(|e| e.to_string())?;
+
+        // 1. Prepare dynamic request headers (e.g. Cookie: ...)
+        let cookie_header = self.cookie_jar.borrow().get_cookie_header_value(&url, true);
+        let mut req_headers = Vec::new();
+        if let Some(ref val) = cookie_header {
+            req_headers.push(("Cookie", val.as_str()));
+        }
+
+        let resp = self
+            .loader
+            .fetch_with_headers(&url, &req_headers)
+            .map_err(|e| e.to_string())?;
 
         if resp.status < 200 || resp.status >= 300 {
             return Err(format!("HTTP error status: {}", resp.status));
+        }
+
+        // 2. Extract and store Set-Cookie headers from HTTP response
+        let default_domain = url.host().unwrap_or("");
+        let default_path = url.path();
+        for (name, val) in &resp.raw_headers {
+            if name.eq_ignore_ascii_case("set-cookie") {
+                if let Some(cookie) =
+                    nirvana_net::cookie::parse_set_cookie(val, default_domain, default_path)
+                {
+                    self.cookie_jar.borrow_mut().store(cookie, &url);
+                }
+            }
         }
 
         let html = resp.text().map_err(|e| format!("Invalid UTF-8 document: {e}"))?;
         let dom = parse_html(html);
 
         // Discover and load linked external stylesheets: <link rel="stylesheet" href="...">
+        let doc_origin = nirvana_net::security::Origin::from_url(&url);
         let mut external_sheets = Vec::new();
         let linked_hrefs = discover_linked_stylesheets(&dom);
         for href in linked_hrefs {
@@ -155,6 +197,12 @@ impl NirvanaEngine {
                     continue;
                 }
             };
+
+            // Mixed content check
+            if nirvana_net::security::is_mixed_content(&doc_origin, &css_url) {
+                eprintln!("Warning: blocked insecure mixed content stylesheet at {css_url}");
+                continue;
+            }
 
             let css_resp = match self.loader.fetch(&css_url) {
                 Ok(resp) => resp,
@@ -198,9 +246,16 @@ impl NirvanaEngine {
         self.input_buffers.clear();
 
         let shared_dom = std::rc::Rc::new(std::cell::RefCell::new(dom));
-        let mut js = nirvana_js::JsRuntime::with_dom(shared_dom.clone());
-
+        let origin_str = doc_origin.as_string();
         let url_str = url.as_str();
+        let mut js = nirvana_js::JsRuntime::with_full_context(
+            shared_dom.clone(),
+            self.storage_backend.clone(),
+            &origin_str,
+            self.cookie_jar.clone(),
+            &url_str,
+        );
+
         self.fetch_and_run_scripts(&shared_dom, Some(&url_str), &mut js);
 
         self.dom = Some(shared_dom.borrow().clone());
@@ -314,6 +369,15 @@ impl NirvanaEngine {
                     Err(_) => continue,
                 },
             };
+
+            // Mixed content check
+            if let Some(base) = base_url {
+                let doc_origin = nirvana_net::security::Origin::from_url(base);
+                if nirvana_net::security::is_mixed_content(&doc_origin, &img_url) {
+                    eprintln!("Warning: blocked insecure mixed content image at {img_url}");
+                    continue;
+                }
+            }
 
             // Check if canonical URL is already cached
             let canonical = img_url.as_str();
@@ -698,6 +762,14 @@ impl NirvanaEngine {
                     Url::parse(&src).ok()
                 };
                 if let Some(script_url) = script_url_opt {
+                    if let Some(ref base) = base_url {
+                        let doc_origin = nirvana_net::security::Origin::from_url(base);
+                        if nirvana_net::security::is_mixed_content(&doc_origin, &script_url) {
+                            eprintln!("Warning: blocked insecure mixed content script at {script_url}");
+                            continue;
+                        }
+                    }
+
                     let resp = match self.loader.fetch(&script_url) {
                         Ok(r) => r,
                         Err(e) => {
@@ -759,6 +831,28 @@ impl NirvanaEngine {
     /// Returns a mutable reference to the active JS runtime, if available.
     pub fn js_runtime_mut(&mut self) -> Option<&mut nirvana_js::JsRuntime> {
         self.js_runtime.as_mut()
+    }
+
+    /// Returns a shared reference to the sovereign CookieJar.
+    pub fn cookie_jar(&self) -> std::rc::Rc<std::cell::RefCell<nirvana_net::cookie::CookieJar>> {
+        self.cookie_jar.clone()
+    }
+
+    /// Returns a shared reference to the origin-partitioned Web Storage backend.
+    pub fn storage_backend(
+        &self,
+    ) -> std::rc::Rc<std::cell::RefCell<nirvana_js::storage::StorageBackend>> {
+        self.storage_backend.clone()
+    }
+
+    /// Empties all stored cookies.
+    pub fn clear_cookies(&mut self) {
+        self.cookie_jar.borrow_mut().clear();
+    }
+
+    /// Clears all local and session Web Storage.
+    pub fn clear_storage(&mut self) {
+        self.storage_backend.borrow_mut().clear();
     }
 }
 
