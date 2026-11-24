@@ -1,10 +1,12 @@
 use std::sync::{Arc, Mutex};
 use boa_engine::{Context, Source};
 use crate::console::{init_console, LogEntry, LogStore};
+use crate::dom_binding::{init_dom, DomHandle, SharedDom};
 
 pub struct JsRuntime {
     context: Context,
     log_store: LogStore,
+    dom_handle: Option<DomHandle>,
 }
 
 impl Default for JsRuntime {
@@ -23,6 +25,22 @@ impl JsRuntime {
         Self {
             context,
             log_store,
+            dom_handle: None,
+        }
+    }
+
+    pub fn with_dom(dom: SharedDom) -> Self {
+        let mut context = Context::default();
+        let log_store: LogStore = Arc::new(Mutex::new(Vec::new()));
+
+        let _ = init_console(&mut context, log_store.clone());
+        let handle = DomHandle::new(dom);
+        let _ = init_dom(&mut context, handle.clone());
+
+        Self {
+            context,
+            log_store,
+            dom_handle: Some(handle),
         }
     }
 
@@ -37,6 +55,19 @@ impl JsRuntime {
                 Ok(res)
             }
             Err(err) => Err(format!("{err}")),
+        }
+    }
+
+    pub fn has_mutated(&self) -> bool {
+        self.dom_handle
+            .as_ref()
+            .map(|h| *h.mutated.borrow())
+            .unwrap_or(false)
+    }
+
+    pub fn clear_mutated(&self) {
+        if let Some(ref h) = self.dom_handle {
+            *h.mutated.borrow_mut() = false;
         }
     }
 

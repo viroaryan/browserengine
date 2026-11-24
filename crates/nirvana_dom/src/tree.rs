@@ -50,6 +50,11 @@ impl DomTree {
         self.root
     }
 
+    /// Returns an iterator over all active NodeIds in the tree.
+    pub fn nodes(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.arena.iter().map(|(id, _)| id)
+    }
+
     pub fn create_element(&mut self, tag: &str) -> NodeId {
         self.arena
             .alloc(Node::new(NodeData::Element(ElementData::new(tag))))
@@ -67,6 +72,18 @@ impl DomTree {
 
     pub fn get_node(&self, id: NodeId) -> Option<&Node> {
         self.arena.get(id)
+    }
+
+    pub fn get_node_mut(&mut self, id: NodeId) -> Option<&mut Node> {
+        self.arena.get_mut(id)
+    }
+
+    pub fn remove_attribute(&mut self, id: NodeId, name: &str) -> Result<bool, DomError> {
+        let node = self.arena.get_mut(id).ok_or(DomError::NodeNotFound)?;
+        match &mut node.data {
+            NodeData::Element(data) => Ok(data.remove_attribute(name)),
+            _ => Err(DomError::NotAnElement),
+        }
     }
 
     pub fn parent(&self, id: NodeId) -> Option<NodeId> {
@@ -194,8 +211,17 @@ impl DomTree {
         Ok(())
     }
 
+    /// Removes a child node from its parent.
+    pub fn remove_child(&mut self, parent: NodeId, child: NodeId) -> Result<(), DomError> {
+        let parent_of_child = self.arena.get(child).and_then(|n| n.parent);
+        if parent_of_child != Some(parent) {
+            return Err(DomError::NodeNotFound);
+        }
+        self.detach_node(child)
+    }
+
     /// Detaches a node from its current parent and sibling links.
-    fn detach_node(&mut self, node_id: NodeId) -> Result<(), DomError> {
+    pub fn detach_node(&mut self, node_id: NodeId) -> Result<(), DomError> {
         let (parent, prev, next) = match self.arena.get(node_id) {
             Some(n) => (n.parent, n.prev_sibling, n.next_sibling),
             None => return Err(DomError::NodeNotFound),

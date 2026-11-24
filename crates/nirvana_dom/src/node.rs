@@ -45,6 +45,20 @@ impl ElementData {
             self.attributes.push((name.to_string(), value.to_string()));
         }
     }
+
+    pub fn remove_attribute(&mut self, name: &str) -> bool {
+        let name_lower = name.to_ascii_lowercase();
+        if let Some(pos) = self
+            .attributes
+            .iter()
+            .position(|(k, _)| k.to_ascii_lowercase() == name_lower)
+        {
+            self.attributes.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
