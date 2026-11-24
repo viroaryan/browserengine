@@ -217,6 +217,26 @@ class NirvanaEngine(
         nativeBlur(nativePtr)
     }
 
+    /**
+     * Evaluates a JavaScript script string in the active JS runtime context.
+     * Returns the evaluation result string, or null on error / empty.
+     */
+    @Synchronized
+    fun evaluateJs(script: String): String? {
+        checkOpen()
+        return nativeEvaluateJs(nativePtr, script)
+    }
+
+    /**
+     * Steps the active JS event loop timers by [deltaMs] milliseconds and fires expired timers.
+     * Returns the number of fired timers.
+     */
+    @Synchronized
+    fun stepTimers(deltaMs: Long): Int {
+        checkOpen()
+        return nativeStepTimers(nativePtr, deltaMs)
+    }
+
     private fun parseHitTargetJson(json: String): HitTarget? {
         val tagMatch = Regex("\"tag\"\\s*:\\s*\"([^\"]*)\"").find(json) ?: return null
         val tag = tagMatch.groupValues[1]
@@ -271,6 +291,8 @@ class NirvanaEngine(
     private external fun nativeBlur(enginePtr: Long)
     private external fun nativeNavigate(enginePtr: Long, url: String): Boolean
     private external fun nativeGetCurrentUrl(enginePtr: Long): String?
+    private external fun nativeEvaluateJs(enginePtr: Long, script: String): String?
+    private external fun nativeStepTimers(enginePtr: Long, deltaMs: Long): Int
 
     companion object {
         init {

@@ -39,6 +39,8 @@ pub struct NirvanaEngine {
     images: ImageMap,
     focused_element: Option<NodeId>,
     input_buffers: HashMap<NodeId, InputBuffer>,
+    shared_dom: Option<std::rc::Rc<std::cell::RefCell<DomTree>>>,
+    js_runtime: Option<nirvana_js::JsRuntime>,
 }
 
 impl NirvanaEngine {
@@ -60,6 +62,8 @@ impl NirvanaEngine {
             images: ImageMap::new(),
             focused_element: None,
             input_buffers: HashMap::new(),
+            shared_dom: None,
+            js_runtime: None,
         }
     }
 
@@ -81,12 +85,23 @@ impl NirvanaEngine {
         self.current_url.as_deref()
     }
 
+    /// Returns a reference to the loaded DOM tree, if any.
+    #[inline]
+    pub fn dom(&self) -> Option<&DomTree> {
+        self.dom.as_ref()
+    }
+
+    /// Returns a reference to the computed layout root box, if any.
+    #[inline]
+    pub fn layout_root(&self) -> Option<&LayoutBox> {
+        self.layout_root.as_ref()
+    }
+
     /// Loads and parses an HTML document string, with optional user/author CSS.
     pub fn load_html(&mut self, html: &str, css: Option<&str>) {
         let dom = parse_html(html);
         self.images.clear();
         self.fetch_and_decode_images(&dom, None);
-        self.dom = Some(dom);
         self.stylesheets.clear();
         self.scroll_x = 0.0;
         self.scroll_y = 0.0;
@@ -95,15 +110,25 @@ impl NirvanaEngine {
         self.focused_element = None;
         self.input_buffers.clear();
 
-        if let Some(ref d) = self.dom {
-            let inline_sheets = discover_inline_stylesheets(d);
-            self.stylesheets.extend(inline_sheets);
-        }
+        let inline_sheets = discover_inline_stylesheets(&dom);
+        self.stylesheets.extend(inline_sheets);
 
         if let Some(css_text) = css {
             let sheet = parse_css(css_text);
             self.stylesheets.push(sheet);
         }
+
+        // Initialize SharedDom and JsRuntime
+        let shared_dom = std::rc::Rc::new(std::cell::RefCell::new(dom));
+        let mut js = nirvana_js::JsRuntime::with_dom(shared_dom.clone());
+
+        let base_url = self.current_url.clone();
+        self.fetch_and_run_scripts(&shared_dom, base_url.as_deref(), &mut js);
+
+        self.dom = Some(shared_dom.borrow().clone());
+        self.shared_dom = Some(shared_dom);
+        js.clear_mutated();
+        self.js_runtime = Some(js);
     }
 
     /// Navigates to a given URL string.
@@ -163,7 +188,6 @@ impl NirvanaEngine {
         self.fetch_and_decode_images(&dom, Some(&url));
 
         let inline_sheets = discover_inline_stylesheets(&dom);
-        self.dom = Some(dom);
         self.stylesheets = external_sheets;
         self.stylesheets.extend(inline_sheets);
         self.scroll_x = 0.0;
@@ -172,6 +196,17 @@ impl NirvanaEngine {
         self.current_url = Some(url_str.to_string());
         self.focused_element = None;
         self.input_buffers.clear();
+
+        let shared_dom = std::rc::Rc::new(std::cell::RefCell::new(dom));
+        let mut js = nirvana_js::JsRuntime::with_dom(shared_dom.clone());
+
+        let url_str = url.as_str();
+        self.fetch_and_run_scripts(&shared_dom, Some(&url_str), &mut js);
+
+        self.dom = Some(shared_dom.borrow().clone());
+        self.shared_dom = Some(shared_dom);
+        js.clear_mutated();
+        self.js_runtime = Some(js);
 
         self.render();
         Ok(())
@@ -197,6 +232,15 @@ impl NirvanaEngine {
 
     /// Executes the full styling, layout, and rasterization pipeline onto the canvas.
     pub fn render(&mut self) {
+        if let Some(ref js) = self.js_runtime
+            && js.has_mutated()
+        {
+            if let Some(ref s_dom) = self.shared_dom {
+                self.dom = Some(s_dom.borrow().clone());
+            }
+            js.clear_mutated();
+        }
+
         let Some(ref dom) = self.dom else {
             return;
         };
@@ -375,6 +419,23 @@ impl NirvanaEngine {
     pub fn handle_click(&mut self, screen_x: f32, screen_y: f32) -> Option<HitTestResult> {
         let hit = self.hit_test(screen_x, screen_y);
         if let Some(ref result) = hit {
+            // Dispatch click event to JS runtime
+            let mut dom_mutated = false;
+            if let Some(ref mut js) = self.js_runtime {
+                let _ = js.dispatch_event(result.node_id, "click");
+                if js.has_mutated() {
+                    dom_mutated = true;
+                    js.clear_mutated();
+                }
+            }
+
+            if dom_mutated {
+                if let Some(ref s_dom) = self.shared_dom {
+                    self.dom = Some(s_dom.borrow().clone());
+                }
+                self.render();
+            }
+
             let is_form_input = result.tag.eq_ignore_ascii_case("input")
                 || result.tag.eq_ignore_ascii_case("textarea");
             if is_form_input {
@@ -587,6 +648,98 @@ impl NirvanaEngine {
             (String::new(), 0, None)
         }
     }
+
+    fn fetch_and_run_scripts(
+        &mut self,
+        shared_dom: &std::rc::Rc<std::cell::RefCell<DomTree>>,
+        base_url_str: Option<&str>,
+        js: &mut nirvana_js::JsRuntime,
+    ) {
+        let scripts = {
+            let dom = shared_dom.borrow();
+            discover_scripts(&dom)
+        };
+        let base_url = base_url_str.and_then(|u| Url::parse(u).ok());
+        for (src_opt, content_opt) in scripts {
+            if let Some(src) = src_opt {
+                if let Some(ref base) = base_url {
+                    let script_url = match base.join(&src) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            eprintln!("Warning: failed to resolve script URL '{src}': {e}");
+                            continue;
+                        }
+                    };
+                    let resp = match self.loader.fetch(&script_url) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            eprintln!("Warning: failed to fetch script at {script_url}: {e}");
+                            continue;
+                        }
+                    };
+                    if resp.status >= 200 && resp.status < 300 {
+                        if let Ok(script_code) = resp.text() {
+                            if let Err(e) = js.eval(script_code) {
+                                eprintln!("JS execution error in external script {script_url}: {e}");
+                            }
+                        }
+                    }
+                }
+            } else if let Some(code) = content_opt {
+                if let Err(e) = js.eval(&code) {
+                    eprintln!("JS execution error in inline script: {e}");
+                }
+            }
+        }
+    }
+
+    /// Evaluates a JavaScript string in the active JS runtime context.
+    /// If the script mutated the DOM, updates the local DOM snapshot and triggers a re-render.
+    pub fn evaluate_js(&mut self, script: &str) -> Result<String, String> {
+        let Some(ref mut js) = self.js_runtime else {
+            return Err("JsRuntime is not initialized".to_string());
+        };
+        let res = js.eval(script);
+        if js.has_mutated() {
+            if let Some(ref s_dom) = self.shared_dom {
+                self.dom = Some(s_dom.borrow().clone());
+            }
+            js.clear_mutated();
+            self.render();
+        }
+        res
+    }
+
+    /// Steps the active JS timers by `delta_ms` milliseconds and fires expired timers.
+    /// If timer callbacks mutated the DOM, updates the local DOM snapshot and triggers a re-render.
+    pub fn step_timers(&mut self, delta_ms: u64) -> usize {
+        let mut executed = 0;
+        let mut mutated = false;
+        if let Some(ref mut js) = self.js_runtime {
+            executed = js.step_timers(delta_ms);
+            if js.has_mutated() {
+                mutated = true;
+                js.clear_mutated();
+            }
+        }
+        if mutated {
+            if let Some(ref s_dom) = self.shared_dom {
+                self.dom = Some(s_dom.borrow().clone());
+            }
+            self.render();
+        }
+        executed
+    }
+
+    /// Returns a reference to the active JS runtime, if available.
+    pub fn js_runtime(&self) -> Option<&nirvana_js::JsRuntime> {
+        self.js_runtime.as_ref()
+    }
+
+    /// Returns a mutable reference to the active JS runtime, if available.
+    pub fn js_runtime_mut(&mut self) -> Option<&mut nirvana_js::JsRuntime> {
+        self.js_runtime.as_mut()
+    }
 }
 
 fn find_box_for_node(layout_box: &LayoutBox, target_id: NodeId) -> Option<&LayoutBox> {
@@ -678,4 +831,36 @@ fn discover_inline_stylesheets(dom: &DomTree) -> Vec<StyleSheet> {
         }
     }
     sheets
+}
+
+fn discover_scripts(dom: &DomTree) -> Vec<(Option<String>, Option<String>)> {
+    let mut scripts = Vec::new();
+    let mut stack = vec![dom.root_id()];
+    while let Some(node_id) = stack.pop() {
+        if dom.node_type(node_id) == Some(NodeType::Element)
+            && let Some(tag) = dom.tag_name(node_id)
+            && tag.eq_ignore_ascii_case("script")
+        {
+            let src = dom.get_attribute(node_id, "src").map(|s| s.to_string());
+            let mut inline = String::new();
+            for child in dom.children(node_id) {
+                if dom.node_type(child) == Some(NodeType::Text)
+                    && let Some(node) = dom.get_node(child)
+                    && let NodeData::Text(ref text) = node.data
+                {
+                    inline.push_str(text);
+                }
+            }
+            let inline_opt = if inline.trim().is_empty() {
+                None
+            } else {
+                Some(inline)
+            };
+            scripts.push((src, inline_opt));
+        }
+        for child in dom.children(node_id).into_iter().rev() {
+            stack.push(child);
+        }
+    }
+    scripts
 }

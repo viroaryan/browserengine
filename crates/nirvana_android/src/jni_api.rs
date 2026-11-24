@@ -528,6 +528,53 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeBlur(
     });
 }
 
+/// Evaluates a JavaScript script in the engine's active runtime.
+/// Returns the evaluation result as a string, or null on error / empty.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeEvaluateJs(
+    mut env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    script: JString,
+) -> jstring {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        let Ok(script_str) = env.get_string(&script) else {
+            return std::ptr::null_mut();
+        };
+        let script_cow = script_str.to_string_lossy();
+        match engine.evaluate_js(&script_cow) {
+            Ok(val) => match env.new_string(val) {
+                Ok(s) => s.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            },
+            Err(_) => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
+}
+
+/// Steps the active JS event loop timers by `delta_ms` and fires callbacks.
+/// Returns the number of fired timers.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeStepTimers(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    delta_ms: jlong,
+) -> jint {
+    let result = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0;
+        };
+        let delta = delta_ms.max(0) as u64;
+        engine.step_timers(delta) as jint
+    });
+    result.unwrap_or(0)
+}
+
 fn escape_json(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {

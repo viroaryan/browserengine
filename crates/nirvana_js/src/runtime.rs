@@ -221,3 +221,12 @@ impl JsRuntime {
         &mut self.context
     }
 }
+
+impl std::fmt::Debug for JsRuntime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JsRuntime")
+            .field("logs", &self.logs().len())
+            .field("has_dom", &self.dom_handle.is_some())
+            .finish()
+    }
+}
