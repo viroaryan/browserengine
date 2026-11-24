@@ -1,8 +1,9 @@
-# Progress Ledger: Phase 5 - 2D Painting & Rasterization
+# Progress Ledger: Phase 6 - Android Integration & JNI Shell
 
 ## Task Status
-- [x] Task 1: `nirvana_gfx` Crate Setup & Display List AST
-- [x] Task 2: Display List Builder (CSS 2.1 Painting Order)
-- [x] Task 3: 2D Framebuffer & Software Rasterizer (`canvas.rs`)
-- [x] Task 4: PNG Export & End-to-End Visual Integration Test
-- [x] Whole-Branch Review & Verification (Approved by Reviewer)
+- [ ] Task 1: `nirvana_android` Crate Setup & Engine State Machine (`engine.rs`)
+- [ ] Task 2: JNI Export Layer & Memory-Safe Pointer Lifecycle (`jni_api.rs`)
+- [ ] Task 3: Surface Blitting & Native Window Buffer Copy (`surface.rs`)
+- [ ] Task 4: Android Kotlin/Java Interface & Build Script (`NirvanaEngine.kt` & `NirvanaView.kt`)
+- [ ] Task 5: End-to-End Integration Test & Full Workspace Verification
+- [ ] Whole-Branch Review & Verification
