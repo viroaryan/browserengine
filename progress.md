@@ -43,7 +43,7 @@
 
 ## Task Status
 - [x] Task 1: Form Controls UA Styling & Layout Sizing (`nirvana_style`, `nirvana_layout`)
-- [ ] Task 2: Caret & Selection Display Commands (`nirvana_gfx`)
+- [x] Task 2: Caret & Selection Display Commands (`nirvana_gfx`)
 - [ ] Task 3: Input State Management & Engine Editing APIs (`nirvana_android`)
 - [ ] Task 4: JNI Bridge for Input & IME (`crates/nirvana_android`)
 - [ ] Task 5: Android `NirvanaView.kt` Soft Keyboard Integration

@@ -319,6 +319,24 @@ impl Canvas {
                     );
                     self.draw_image(shifted_rect, image);
                 }
+                DisplayCommand::Caret { rect, color } => {
+                    let shifted_rect = Rect::new(
+                        rect.x() + offset_x,
+                        rect.y() + offset_y,
+                        rect.width(),
+                        rect.height(),
+                    );
+                    self.fill_rect(shifted_rect, *color);
+                }
+                DisplayCommand::TextSelection { rect, color } => {
+                    let shifted_rect = Rect::new(
+                        rect.x() + offset_x,
+                        rect.y() + offset_y,
+                        rect.width(),
+                        rect.height(),
+                    );
+                    self.fill_rect(shifted_rect, *color);
+                }
             }
         }
     }

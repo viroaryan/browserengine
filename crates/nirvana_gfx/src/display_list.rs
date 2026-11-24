@@ -29,6 +29,16 @@ pub enum DisplayCommand {
         rect: Rect,
         image: std::sync::Arc<crate::image::DecodedImage>,
     },
+    /// Draws a text input caret cursor (vertical bar).
+    Caret {
+        rect: Rect,
+        color: Rgba,
+    },
+    /// Draws a text selection highlight rectangle.
+    TextSelection {
+        rect: Rect,
+        color: Rgba,
+    },
 }
 
 /// An ordered sequence of drawing commands representing the visual appearance of a page.
