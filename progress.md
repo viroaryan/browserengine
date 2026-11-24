@@ -1,9 +1,9 @@
-# Progress Ledger: Phase 4 - Layout Engine & Box Model
+# Progress Ledger: Phase 5 - 2D Painting & Rasterization
 
 ## Task Status
-- [x] Task 1: `nirvana_layout` Crate Setup & Box Model Geometry
-- [x] Task 2: Layout Tree Construction (`tree_builder.rs`)
-- [x] Task 3: Block Formatting Context & Box Sizing (`block.rs`)
-- [x] Task 4: Complete Document Layout Pipeline & Full Integration
-- [x] Whole-Branch Review & Verification
+- [x] Task 1: `nirvana_gfx` Crate Setup & Display List AST
+- [x] Task 2: Display List Builder (CSS 2.1 Painting Order)
+- [x] Task 3: 2D Framebuffer & Software Rasterizer (`canvas.rs`)
+- [x] Task 4: PNG Export & End-to-End Visual Integration Test
+- [ ] Whole-Branch Review & Verification
 - [ ] Whole-Branch Review & Verification

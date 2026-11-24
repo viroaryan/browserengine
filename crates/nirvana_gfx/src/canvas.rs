@@ -17,7 +17,10 @@ pub struct Canvas {
 impl Canvas {
     /// Creates a new `Canvas` with given dimensions initialized to transparent black (0, 0, 0, 0).
     pub fn new(width: u32, height: u32) -> Self {
-        let size = (width as usize) * (height as usize) * 4;
+        let size = (width as usize)
+            .checked_mul(height as usize)
+            .and_then(|px| px.checked_mul(4))
+            .expect("Canvas dimensions overflow memory allocation limits");
         Self {
             width,
             height,
@@ -114,27 +117,36 @@ impl Canvas {
         let rw = rect.width();
         let rh = rect.height();
 
-        // Top border
+        // Top border (full width across the top)
         if widths.top > 0.0 {
             self.fill_rect(Rect::new(rx, ry, rw, widths.top), color);
         }
-        // Bottom border
+        // Bottom border (full width across the bottom)
         if widths.bottom > 0.0 {
             self.fill_rect(
                 Rect::new(rx, ry + rh - widths.bottom, rw, widths.bottom),
                 color,
             );
         }
-        // Left border
+        // Left border (spans between top and bottom borders to prevent corner double-blending)
         if widths.left > 0.0 {
-            self.fill_rect(Rect::new(rx, ry, widths.left, rh), color);
+            let v_height = (rh - widths.top - widths.bottom).max(0.0);
+            if v_height > 0.0 {
+                self.fill_rect(
+                    Rect::new(rx, ry + widths.top, widths.left, v_height),
+                    color,
+                );
+            }
         }
-        // Right border
+        // Right border (spans between top and bottom borders to prevent corner double-blending)
         if widths.right > 0.0 {
-            self.fill_rect(
-                Rect::new(rx + rw - widths.right, ry, widths.right, rh),
-                color,
-            );
+            let v_height = (rh - widths.top - widths.bottom).max(0.0);
+            if v_height > 0.0 {
+                self.fill_rect(
+                    Rect::new(rx + rw - widths.right, ry + widths.top, widths.right, v_height),
+                    color,
+                );
+            }
         }
     }
 

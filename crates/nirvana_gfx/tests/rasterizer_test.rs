@@ -40,3 +40,33 @@ fn test_canvas_clipping_no_panic() {
     canvas.fill_rect(Rect::new(-100.0, -100.0, 200.0, 200.0), Rgba::new(255, 0, 0, 255));
     assert_eq!(canvas.pixel_at(10, 10), Rgba::new(255, 0, 0, 255));
 }
+
+#[test]
+fn test_border_corners_no_double_blending() {
+    let mut canvas = Canvas::new(100, 100);
+    let border_color = Rgba::new(255, 0, 0, 100);
+    let widths = nirvana_layout::dimensions::EdgeSizes {
+        top: 10.0,
+        right: 10.0,
+        bottom: 10.0,
+        left: 10.0,
+    };
+
+    canvas.draw_borders(
+        Rect::new(20.0, 20.0, 60.0, 60.0),
+        widths,
+        border_color,
+    );
+
+    // Corner pixel (top-left: x=20, y=20)
+    let corner_px = canvas.pixel_at(20, 20);
+    // Edge midpoint pixel (top edge: x=50, y=20)
+    let top_edge_px = canvas.pixel_at(50, 20);
+    // Edge midpoint pixel (left edge: x=20, y=50)
+    let left_edge_px = canvas.pixel_at(20, 50);
+
+    assert_eq!(corner_px, border_color);
+    assert_eq!(top_edge_px, border_color);
+    assert_eq!(left_edge_px, border_color);
+    assert_eq!(corner_px, top_edge_px);
+}

@@ -27,11 +27,11 @@ fn render_layout_box(
         .node_id()
         .and_then(|id| style_tree.get_style(id));
 
-    // 1. Paint background of current box (covers padding_box)
+    // 1. Paint background of current box (covers border_box per CSS 2.1 / CSS Backgrounds 3)
     if let Some(s) = style {
         if s.background_color.a > 0 {
             list.push(DisplayCommand::SolidColor {
-                rect: layout_box.dimensions.padding_box(),
+                rect: layout_box.dimensions.border_box(),
                 color: s.background_color,
             });
         }
@@ -57,9 +57,16 @@ fn render_layout_box(
     {
         let trimmed = text.trim();
         if !trimmed.is_empty() {
-            let text_color = style
-                .map(|s| s.color)
-                .unwrap_or(nirvana_core::color::Rgba::new(0, 0, 0, 255));
+            // Text nodes are not in StyleTree; walk ancestors to resolve computed color
+            let mut text_color = nirvana_core::color::Rgba::new(0, 0, 0, 255);
+            let mut curr = Some(id);
+            while let Some(node_id) = curr {
+                if let Some(s) = style_tree.get_style(node_id) {
+                    text_color = s.color;
+                    break;
+                }
+                curr = dom.parent(node_id);
+            }
 
             list.push(DisplayCommand::Text {
                 text: trimmed.to_string(),
