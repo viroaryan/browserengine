@@ -1,0 +1,13 @@
+[package]
+name = "nirvana_net"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
+nirvana_core = { path = "../nirvana_core" }
+nirvana_url = { path = "../nirvana_url" }

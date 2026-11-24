@@ -1,0 +1,37 @@
+//! Resource response data structure.
+
+use std::collections::HashMap;
+
+/// An HTTP or protocol resource response.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Response {
+    /// HTTP status code or protocol equivalent (200 for OK).
+    pub status: u16,
+    /// Response headers (case-insensitive keys converted to lowercase).
+    pub headers: HashMap<String, String>,
+    /// Raw payload bytes.
+    pub body: Vec<u8>,
+    /// Extracted or inferred MIME type (e.g. "text/html", "text/css").
+    pub mime_type: Option<String>,
+}
+
+impl Response {
+    /// Creates a new successful (200 OK) Response.
+    pub fn ok(body: Vec<u8>, mime_type: Option<String>) -> Self {
+        let mut headers = HashMap::new();
+        if let Some(ref m) = mime_type {
+            headers.insert("content-type".to_string(), m.clone());
+        }
+        Self {
+            status: 200,
+            headers,
+            body,
+            mime_type,
+        }
+    }
+
+    /// Converts the response body into a UTF-8 string slice reference.
+    pub fn text(&self) -> Result<&str, std::str::Utf8Error> {
+        std::str::from_utf8(&self.body)
+    }
+}
