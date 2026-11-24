@@ -11,12 +11,15 @@ use nirvana_layout::dimensions::EdgeSizes;
 use nirvana_style::compute::StyleTree;
 use std::collections::HashMap;
 
+/// Form control text state tuple: (current_text, caret_char_index, Option<selection_range>).
+pub type InputBuffer = (String, usize, Option<(usize, usize)>);
+
 /// State of interactive form controls (focused element, text buffers, caret positions).
 #[derive(Debug, Clone, Default)]
 pub struct FormState {
     pub focused_node: Option<NodeId>,
     /// NodeId -> (current_text, caret_char_index, Option<selection_range>)
-    pub inputs: HashMap<NodeId, (String, usize, Option<(usize, usize)>)>,
+    pub inputs: HashMap<NodeId, InputBuffer>,
 }
 
 /// Builds a `DisplayList` by traversing the layout tree in CSS 2.1 Appendix E painting order.
@@ -140,9 +143,19 @@ fn render_layout_box(
             let (raw_text, cursor_idx, selection_opt) = if let Some(state) = form_state.inputs.get(&id) {
                 (state.0.clone(), state.1, state.2)
             } else if let Some(val) = dom.get_attribute(id, "value") {
-                (val.to_string(), val.len(), None)
+                (val.to_string(), val.chars().count(), None)
             } else {
-                (String::new(), 0, None)
+                let mut child_text = String::new();
+                for child in dom.children(id) {
+                    if dom.node_type(child) == Some(NodeType::Text)
+                        && let Some(node) = dom.get_node(child)
+                        && let NodeData::Text(ref t) = node.data
+                    {
+                        child_text.push_str(t);
+                    }
+                }
+                let len = child_text.chars().count();
+                (child_text, len, None)
             };
 
             let is_password = is_input && dom.get_attribute(id, "type").is_some_and(|t| t.eq_ignore_ascii_case("password"));
@@ -178,14 +191,14 @@ fn render_layout_box(
                     origin: layout_box.dimensions.content.origin,
                     color: text_color,
                 });
-            } else if let Some(placeholder) = dom.get_attribute(id, "placeholder") {
-                if !placeholder.is_empty() {
-                    list.push(DisplayCommand::Text {
-                        text: placeholder.to_string(),
-                        origin: layout_box.dimensions.content.origin,
-                        color: Rgba::new(150, 150, 150, 255), // Dim placeholder gray
-                    });
-                }
+            } else if let Some(placeholder) = dom.get_attribute(id, "placeholder")
+                && !placeholder.is_empty()
+            {
+                list.push(DisplayCommand::Text {
+                    text: placeholder.to_string(),
+                    origin: layout_box.dimensions.content.origin,
+                    color: Rgba::new(150, 150, 150, 255), // Dim placeholder gray
+                });
             }
 
             // Blinking Caret cursor if focused
@@ -231,8 +244,15 @@ fn render_layout_box(
         }
     }
 
-    // 6. Paint children recursively in tree order
-    for child in &layout_box.children {
-        render_layout_box(child, style_tree, dom, images, form_state, list);
+    // 6. Paint children recursively in tree order (skip replaced form controls)
+    let is_replaced_form = layout_box.node_id().is_some_and(|id| {
+        dom.tag_name(id).is_some_and(|t| {
+            t.eq_ignore_ascii_case("input") || t.eq_ignore_ascii_case("textarea")
+        })
+    });
+    if !is_replaced_form {
+        for child in &layout_box.children {
+            render_layout_box(child, style_tree, dom, images, form_state, list);
+        }
     }
 }

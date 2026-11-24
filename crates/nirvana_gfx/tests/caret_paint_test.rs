@@ -47,8 +47,10 @@ fn test_render_focused_input_with_value_and_caret() {
     // Find input node id
     let input_id = layout_root.children[0].children[0].node_id().unwrap();
 
-    let mut form_state = FormState::default();
-    form_state.focused_node = Some(input_id);
+    let mut form_state = FormState {
+        focused_node: Some(input_id),
+        ..Default::default()
+    };
     form_state
         .inputs
         .insert(input_id, ("hello".to_string(), 5, None));

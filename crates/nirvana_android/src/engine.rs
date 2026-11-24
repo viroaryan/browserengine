@@ -6,7 +6,7 @@ use nirvana_css::ast::StyleSheet;
 use nirvana_css::parser::parse_css;
 use nirvana_dom::node::NodeData;
 use nirvana_dom::{DomTree, NodeId, NodeType};
-use nirvana_gfx::builder::{build_display_list_full, FormState};
+use nirvana_gfx::builder::{build_display_list_full, FormState, InputBuffer};
 use nirvana_gfx::canvas::Canvas;
 use nirvana_gfx::display_list::DisplayList;
 use nirvana_gfx::image::{decode_image, ImageMap};
@@ -38,7 +38,7 @@ pub struct NirvanaEngine {
     current_url: Option<String>,
     images: ImageMap,
     focused_element: Option<NodeId>,
-    input_buffers: HashMap<NodeId, (String, usize, Option<(usize, usize)>)>,
+    input_buffers: HashMap<NodeId, InputBuffer>,
 }
 
 impl NirvanaEngine {
@@ -216,9 +216,10 @@ impl NirvanaEngine {
         let viewport = Size::new(self.width as f32, self.height as f32);
         let layout_root = layout_document_with_context(dom, &style_tree, viewport, &layout_ctx);
 
-        let mut form_state = FormState::default();
-        form_state.focused_node = self.focused_element;
-        form_state.inputs = self.input_buffers.clone();
+        let form_state = FormState {
+            focused_node: self.focused_element,
+            inputs: self.input_buffers.clone(),
+        };
 
         let mut canvas = Canvas::new(self.width, self.height);
         let display_list = if let Some(ref root) = layout_root {
@@ -561,7 +562,17 @@ impl NirvanaEngine {
             if let Some(val) = dom.get_attribute(node_id, "value") {
                 (val.to_string(), val.chars().count(), None)
             } else {
-                (String::new(), 0, None)
+                let mut child_text = String::new();
+                for child in dom.children(node_id) {
+                    if dom.node_type(child) == Some(NodeType::Text)
+                        && let Some(node) = dom.get_node(child)
+                        && let NodeData::Text(ref t) = node.data
+                    {
+                        child_text.push_str(t);
+                    }
+                }
+                let len = child_text.chars().count();
+                (child_text, len, None)
             }
         } else {
             (String::new(), 0, None)
@@ -569,7 +580,7 @@ impl NirvanaEngine {
     }
 }
 
-fn find_box_for_node<'a>(layout_box: &'a LayoutBox, target_id: NodeId) -> Option<&'a LayoutBox> {
+fn find_box_for_node(layout_box: &LayoutBox, target_id: NodeId) -> Option<&LayoutBox> {
     if layout_box.node_id() == Some(target_id) {
         return Some(layout_box);
     }

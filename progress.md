@@ -47,7 +47,7 @@
 - [x] Task 3: Input State Management & Engine Editing APIs (`nirvana_android`)
 - [x] Task 4: JNI Bridge for Input & IME (`crates/nirvana_android`)
 - [x] Task 5: Android `NirvanaView.kt` Soft Keyboard Integration
-- [ ] Task 6: End-to-End User Input Test & Full Workspace Verification
+- [x] Task 6: End-to-End User Input Test & Full Workspace Verification
 - [ ] Whole-Branch Review & Verification
 
 
