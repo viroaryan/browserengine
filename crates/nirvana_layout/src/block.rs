@@ -116,7 +116,6 @@ impl LayoutBox {
             + self.dimensions.padding.left;
 
         let y = containing_block.content.y()
-            + containing_block.content.height()
             + self.dimensions.margin.top
             + self.dimensions.border.top
             + self.dimensions.padding.top;
