@@ -9,5 +9,5 @@ pub mod tree_builder;
 
 pub use box_type::{BoxType, LayoutBox};
 pub use dimensions::{Dimensions, EdgeSizes};
-pub use layout::layout_document;
-pub use tree_builder::build_layout_tree;
+pub use layout::{layout_document, layout_document_with_context};
+pub use tree_builder::{build_layout_tree, build_layout_tree_with_context, LayoutContext};

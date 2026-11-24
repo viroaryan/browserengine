@@ -96,15 +96,28 @@ impl LayoutBox {
 
                 self.dimensions.margin = EdgeSizes::new(m_top, mr, m_bottom, ml);
 
-                let total_non_content = self.dimensions.padding.left
-                    + self.dimensions.padding.right
-                    + self.dimensions.border.left
-                    + self.dimensions.border.right
-                    + self.dimensions.margin.left
-                    + self.dimensions.margin.right;
+                let w = if let Some(intrinsic) = self.intrinsic_size {
+                    if let Length::Px(h) = style.height {
+                        if intrinsic.height > 0.0 {
+                            h * (intrinsic.width / intrinsic.height)
+                        } else {
+                            intrinsic.width
+                        }
+                    } else {
+                        intrinsic.width
+                    }
+                } else {
+                    let total_non_content = self.dimensions.padding.left
+                        + self.dimensions.padding.right
+                        + self.dimensions.border.left
+                        + self.dimensions.border.right
+                        + self.dimensions.margin.left
+                        + self.dimensions.margin.right;
 
-                self.dimensions.content.size.width =
-                    (container_width - total_non_content).max(0.0);
+                    (container_width - total_non_content).max(0.0)
+                };
+
+                self.dimensions.content.size.width = w.max(0.0);
             }
         }
     }
@@ -151,19 +164,93 @@ impl LayoutBox {
                 self.dimensions.content.size.height = h.max(0.0);
             }
             Length::Auto => {
-                // Sum of children margin box heights
-                let total_children_height: f32 = self
-                    .children
-                    .iter()
-                    .map(|c| c.dimensions.margin_box().height())
-                    .sum();
-                self.dimensions.content.size.height = total_children_height;
+                if let Some(intrinsic) = self.intrinsic_size {
+                    if let Length::Px(w) = style.width {
+                        if intrinsic.width > 0.0 {
+                            self.dimensions.content.size.height =
+                                (w * (intrinsic.height / intrinsic.width)).max(0.0);
+                        } else {
+                            self.dimensions.content.size.height = intrinsic.height;
+                        }
+                    } else if self.dimensions.content.size.width > 0.0 && intrinsic.width > 0.0 {
+                        self.dimensions.content.size.height = (self.dimensions.content.size.width
+                            * (intrinsic.height / intrinsic.width))
+                            .max(0.0);
+                    } else {
+                        self.dimensions.content.size.height = intrinsic.height;
+                    }
+                } else {
+                    // Sum of children margin box heights
+                    let total_children_height: f32 = self
+                        .children
+                        .iter()
+                        .map(|c| c.dimensions.margin_box().height())
+                        .sum();
+                    self.dimensions.content.size.height = total_children_height;
+                }
             }
         }
     }
 
     fn layout_inline(&mut self, containing_block: &Dimensions, style_tree: &StyleTree) {
+        let style = self
+            .node_id()
+            .and_then(|id| style_tree.get_style(id).cloned())
+            .unwrap_or_default();
+
+        let p_top = length_to_px(&style.padding_top);
+        let p_right = length_to_px(&style.padding_right);
+        let p_bottom = length_to_px(&style.padding_bottom);
+        let p_left = length_to_px(&style.padding_left);
+        self.dimensions.padding = EdgeSizes::new(p_top, p_right, p_bottom, p_left);
+
+        let b = style.border_width;
+        self.dimensions.border = EdgeSizes::new(b, b, b, b);
+
+        let m_top = length_to_px(&style.margin_top);
+        let m_right = length_to_px(&style.margin_right);
+        let m_bottom = length_to_px(&style.margin_bottom);
+        let m_left = length_to_px(&style.margin_left);
+        self.dimensions.margin = EdgeSizes::new(m_top, m_right, m_bottom, m_left);
+
         self.dimensions.content.origin = containing_block.content.origin;
+
+        if let Some(intrinsic) = self.intrinsic_size {
+            let width = match style.width {
+                Length::Px(w) => w,
+                Length::Auto => {
+                    if let Length::Px(h) = style.height {
+                        if intrinsic.height > 0.0 {
+                            h * (intrinsic.width / intrinsic.height)
+                        } else {
+                            intrinsic.width
+                        }
+                    } else {
+                        intrinsic.width
+                    }
+                }
+            };
+
+            let height = match style.height {
+                Length::Px(h) => h,
+                Length::Auto => {
+                    if let Length::Px(w) = style.width {
+                        if intrinsic.width > 0.0 {
+                            w * (intrinsic.height / intrinsic.width)
+                        } else {
+                            intrinsic.height
+                        }
+                    } else {
+                        intrinsic.height
+                    }
+                }
+            };
+
+            self.dimensions.content.size.width = width.max(0.0);
+            self.dimensions.content.size.height = height.max(0.0);
+            return;
+        }
+
         for child in &mut self.children {
             child.layout(containing_block, style_tree);
         }

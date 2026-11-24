@@ -2,6 +2,7 @@
 
 use crate::dimensions::Dimensions;
 use nirvana_core::arena::Id;
+use nirvana_core::geometry::Size;
 use nirvana_dom::node::Node;
 
 /// The formatting type of a layout box.
@@ -9,7 +10,7 @@ use nirvana_dom::node::Node;
 pub enum BoxType {
     /// A block-level container backed by a DOM node (e.g. `div`, `p`, `html`, `body`).
     BlockNode(Id<Node>),
-    /// An inline-level box backed by a DOM node (e.g. `span`, `a`, text node).
+    /// An inline-level box backed by a DOM node (e.g. `span`, `a`, text node, `img`).
     InlineNode(Id<Node>),
     /// An anonymous block box generated to wrap inline children inside a block container
     /// that also contains block-level children (CSS 2.1 §9.2.1.1).
@@ -22,6 +23,8 @@ pub struct LayoutBox {
     pub box_type: BoxType,
     pub dimensions: Dimensions,
     pub children: Vec<LayoutBox>,
+    /// Intrinsic dimensions for replaced elements (e.g. `<img>`).
+    pub intrinsic_size: Option<Size>,
 }
 
 impl LayoutBox {
@@ -31,7 +34,14 @@ impl LayoutBox {
             box_type,
             dimensions: Dimensions::default(),
             children: Vec::new(),
+            intrinsic_size: None,
         }
+    }
+
+    /// Returns `true` if this box represents a replaced element (like `<img>`).
+    #[inline]
+    pub fn is_replaced(&self) -> bool {
+        self.intrinsic_size.is_some()
     }
 
     /// Returns the DOM node ID associated with this box, if any.

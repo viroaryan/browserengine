@@ -2,7 +2,7 @@
 
 use crate::box_type::LayoutBox;
 use crate::dimensions::Dimensions;
-use crate::tree_builder::build_layout_tree;
+use crate::tree_builder::{build_layout_tree_with_context, LayoutContext};
 use nirvana_core::geometry::{Rect, Size};
 use nirvana_dom::DomTree;
 use nirvana_style::compute::StyleTree;
@@ -14,7 +14,17 @@ pub fn layout_document(
     style_tree: &StyleTree,
     viewport: Size,
 ) -> Option<LayoutBox> {
-    let mut root_box = build_layout_tree(dom, style_tree)?;
+    layout_document_with_context(dom, style_tree, viewport, &LayoutContext::default())
+}
+
+/// Performs full document layout with an explicit `LayoutContext` (e.g. intrinsic image sizes).
+pub fn layout_document_with_context(
+    dom: &DomTree,
+    style_tree: &StyleTree,
+    viewport: Size,
+    context: &LayoutContext,
+) -> Option<LayoutBox> {
+    let mut root_box = build_layout_tree_with_context(dom, style_tree, context)?;
 
     let initial_containing_block = Dimensions {
         content: Rect::new(0.0, 0.0, viewport.width, viewport.height),
