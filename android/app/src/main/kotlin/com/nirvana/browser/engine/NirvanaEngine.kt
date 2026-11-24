@@ -31,14 +31,14 @@ class NirvanaEngine(
 
     /** Viewport width in pixels. */
     val width: Int
-        get() {
+        @Synchronized get() {
             checkOpen()
             return nativeGetWidth(nativePtr)
         }
 
     /** Viewport height in pixels. */
     val height: Int
-        get() {
+        @Synchronized get() {
             checkOpen()
             return nativeGetHeight(nativePtr)
         }
@@ -46,6 +46,7 @@ class NirvanaEngine(
     /**
      * Loads and parses an HTML document with optional CSS rules.
      */
+    @Synchronized
     fun loadHtml(html: String, css: String = "") {
         checkOpen()
         nativeLoadHtml(nativePtr, html, css)
@@ -56,6 +57,7 @@ class NirvanaEngine(
      * Fetches document, resolves external linked stylesheets, and executes layout rendering.
      * Returns true on success, false on failure.
      */
+    @Synchronized
     fun navigate(url: String): Boolean {
         checkOpen()
         return nativeNavigate(nativePtr, url)
@@ -63,7 +65,7 @@ class NirvanaEngine(
 
     /** The canonical URL of the currently loaded document, or null if none. */
     val currentUrl: String?
-        get() {
+        @Synchronized get() {
             checkOpen()
             return nativeGetCurrentUrl(nativePtr)
         }
@@ -71,6 +73,7 @@ class NirvanaEngine(
     /**
      * Resizes the engine's viewport dimensions.
      */
+    @Synchronized
     fun resize(newWidth: Int, newHeight: Int) {
         checkOpen()
         nativeResize(nativePtr, newWidth.coerceAtLeast(1), newHeight.coerceAtLeast(1))
@@ -79,6 +82,7 @@ class NirvanaEngine(
     /**
      * Executes the layout and rasterization pipeline.
      */
+    @Synchronized
     fun render() {
         checkOpen()
         nativeRender(nativePtr)
@@ -88,6 +92,7 @@ class NirvanaEngine(
      * Retrieves the rasterized 32-bit RGBA pixel buffer.
      * Dimensions are [width] x [height] x 4 bytes.
      */
+    @Synchronized
     fun getPixels(): ByteArray {
         checkOpen()
         return nativeGetPixels(nativePtr)
@@ -98,6 +103,7 @@ class NirvanaEngine(
      * Zero-allocation transfer mechanism eliminating GC churn.
      * Returns true on success, false if the buffer capacity is insufficient or native copy fails.
      */
+    @Synchronized
     fun copyPixelsToBuffer(directBuffer: java.nio.ByteBuffer): Boolean {
         checkOpen()
         require(directBuffer.isDirect) { "Buffer must be allocated via ByteBuffer.allocateDirect()" }
@@ -106,21 +112,21 @@ class NirvanaEngine(
 
     /** Horizontal scroll offset in pixels. */
     val scrollX: Float
-        get() {
+        @Synchronized get() {
             checkOpen()
             return nativeGetScrollX(nativePtr)
         }
 
     /** Vertical scroll offset in pixels. */
     val scrollY: Float
-        get() {
+        @Synchronized get() {
             checkOpen()
             return nativeGetScrollY(nativePtr)
         }
 
     /** Maximum vertical scroll offset in pixels. */
     val maxScrollY: Float
-        get() {
+        @Synchronized get() {
             checkOpen()
             return nativeGetMaxScrollY(nativePtr)
         }
@@ -128,6 +134,7 @@ class NirvanaEngine(
     /**
      * Scrolls the viewport by the given delta (dx, dy).
      */
+    @Synchronized
     fun scrollBy(dx: Float, dy: Float) {
         checkOpen()
         nativeScrollBy(nativePtr, dx, dy)
@@ -136,6 +143,7 @@ class NirvanaEngine(
     /**
      * Sets the viewport scroll offset to the specified (x, y) coordinates.
      */
+    @Synchronized
     fun scrollTo(x: Float, y: Float) {
         checkOpen()
         nativeScrollTo(nativePtr, x, y)
@@ -145,6 +153,7 @@ class NirvanaEngine(
      * Performs a hit-test at the given screen coordinates (x, y).
      * Returns a [HitTarget] if an element or link was tapped, or null otherwise.
      */
+    @Synchronized
     fun hitTest(screenX: Float, screenY: Float): HitTarget? {
         checkOpen()
         val json = nativeHitTest(nativePtr, screenX, screenY) ?: return null
@@ -165,6 +174,7 @@ class NirvanaEngine(
         return HitTarget(tag, href, text)
     }
 
+    @Synchronized
     override fun close() {
         if (isClosed.compareAndSet(false, true)) {
             val ptr = nativePtr

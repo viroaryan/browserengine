@@ -102,12 +102,38 @@ impl NirvanaEngine {
         let mut external_sheets = Vec::new();
         let linked_hrefs = discover_linked_stylesheets(&dom);
         for href in linked_hrefs {
-            if let Ok(css_url) = url.join(&href)
-                && let Ok(css_resp) = self.loader.fetch(&css_url)
-                && let Ok(css_text) = css_resp.text()
-            {
-                let sheet = parse_css(css_text);
-                external_sheets.push(sheet);
+            let css_url = match url.join(&href) {
+                Ok(u) => u,
+                Err(e) => {
+                    eprintln!("Warning: failed to resolve stylesheet URL '{href}': {e}");
+                    continue;
+                }
+            };
+
+            let css_resp = match self.loader.fetch(&css_url) {
+                Ok(resp) => resp,
+                Err(e) => {
+                    eprintln!("Warning: failed to fetch stylesheet at {css_url}: {e}");
+                    continue;
+                }
+            };
+
+            if css_resp.status < 200 || css_resp.status >= 300 {
+                eprintln!(
+                    "Warning: failed to load stylesheet at {}: HTTP {}",
+                    css_url, css_resp.status
+                );
+                continue;
+            }
+
+            match css_resp.text() {
+                Ok(css_text) => {
+                    let sheet = parse_css(css_text);
+                    external_sheets.push(sheet);
+                }
+                Err(e) => {
+                    eprintln!("Warning: invalid UTF-8 in stylesheet at {css_url}: {e}");
+                }
             }
         }
 
@@ -262,7 +288,7 @@ fn discover_linked_stylesheets(dom: &DomTree) -> Vec<String> {
         {
             hrefs.push(href.to_string());
         }
-        for child in dom.children(node_id) {
+        for child in dom.children(node_id).into_iter().rev() {
             stack.push(child);
         }
     }

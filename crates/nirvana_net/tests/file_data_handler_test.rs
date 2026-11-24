@@ -37,3 +37,24 @@ fn test_file_handler_reads_local_file() {
     assert_eq!(resp.status, 200);
     assert!(resp.text().unwrap().contains("name = \"nirvana_net\""));
 }
+
+#[test]
+fn test_file_handler_reads_percent_encoded_path() {
+    let handler = FileHandler;
+    let temp_dir = std::env::temp_dir();
+    let temp_file_path = temp_dir.join("nirvana test space.txt");
+    std::fs::write(&temp_file_path, "percent encoded content").unwrap();
+
+    // Construct URL with %20 instead of spaces
+    let file_url_str = format!(
+        "file:///{}",
+        temp_file_path.to_str().unwrap().replace('\\', "/").replace(' ', "%20")
+    );
+    let url = Url::parse(&file_url_str).unwrap();
+
+    let resp = handler.fetch(&url).unwrap();
+    assert_eq!(resp.status, 200);
+    assert_eq!(resp.text().unwrap(), "percent encoded content");
+
+    let _ = std::fs::remove_file(temp_file_path);
+}

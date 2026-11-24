@@ -25,7 +25,7 @@ impl ResourceLoader {
     /// Creates a new ResourceLoader pre-configured with HTTP, File, and Data URI handlers.
     pub fn new() -> Self {
         let handlers: Vec<Box<dyn ProtocolHandler>> = vec![
-            Box::new(HttpHandler),
+            Box::new(HttpHandler::default()),
             Box::new(FileHandler),
             Box::new(DataUriHandler),
         ];
@@ -34,6 +34,19 @@ impl ResourceLoader {
             handlers,
             cache: Arc::new(ResourceCache::default()),
         }
+    }
+
+    /// Creates a ResourceLoader with custom protocol handlers.
+    pub fn with_handlers(handlers: Vec<Box<dyn ProtocolHandler>>) -> Self {
+        Self {
+            handlers,
+            cache: Arc::new(ResourceCache::default()),
+        }
+    }
+
+    /// Access the internal resource cache.
+    pub fn cache(&self) -> &Arc<ResourceCache> {
+        &self.cache
     }
 
     /// Fetches a resource from the given parsed `Url`.
@@ -56,8 +69,10 @@ impl ResourceLoader {
         // 3. Fetch resource
         let response = handler.fetch(url)?;
 
-        // 4. Store in cache on success
-        self.cache.insert(url_str, response.clone());
+        // 4. Store in cache on success (2xx HTTP / OK status)
+        if response.status >= 200 && response.status < 300 {
+            self.cache.insert(url_str, response.clone());
+        }
 
         Ok(response)
     }

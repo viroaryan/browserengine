@@ -24,7 +24,8 @@ impl ProtocolHandler for FileHandler {
     }
 
     fn fetch(&self, url: &Url) -> Result<Response, NetError> {
-        let mut path_str = url.path();
+        let decoded_path = percent_decode_str(url.path());
+        let mut path_str = decoded_path.as_str();
 
         // On Windows, strip leading slash for drive-letter paths (e.g. "/C:/path" -> "C:/path")
         if path_str.len() >= 3
@@ -41,6 +42,10 @@ impl ProtocolHandler for FileHandler {
 
         Ok(Response::ok(bytes, Some(mime.to_string())))
     }
+}
+
+fn percent_decode_str(input: &str) -> String {
+    String::from_utf8_lossy(&percent_decode(input)).into_owned()
 }
 
 /// Protocol handler for `data:` inline URIs.

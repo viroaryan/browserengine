@@ -5,10 +5,28 @@ use crate::handler::ProtocolHandler;
 use crate::response::Response;
 use nirvana_url::Url;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+
+/// Default timeout for HTTP requests (10 seconds).
+const HTTP_TIMEOUT_SECS: u64 = 10;
 
 /// Protocol handler for `http://` and `https://` URLs.
-#[derive(Debug, Default)]
-pub struct HttpHandler;
+#[derive(Debug, Clone)]
+pub struct HttpHandler {
+    agent: Arc<ureq::Agent>,
+}
+
+impl Default for HttpHandler {
+    fn default() -> Self {
+        let config = ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(HTTP_TIMEOUT_SECS)))
+            .build();
+        Self {
+            agent: Arc::new(ureq::Agent::new_with_config(config)),
+        }
+    }
+}
 
 impl ProtocolHandler for HttpHandler {
     fn can_handle(&self, scheme: &str) -> bool {
@@ -18,7 +36,9 @@ impl ProtocolHandler for HttpHandler {
     fn fetch(&self, url: &Url) -> Result<Response, NetError> {
         let url_str = url.as_str();
 
-        let resp = ureq::get(&url_str)
+        let resp = self
+            .agent
+            .get(&url_str)
             .header("User-Agent", "NirvanaBrowser/0.1.0 (Android; Rust Engine)")
             .call()
             .map_err(|e| NetError::NetworkFailure(e.to_string()))?;

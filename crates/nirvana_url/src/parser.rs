@@ -154,7 +154,11 @@ impl Url {
             remainder
         };
 
-        let path = normalize_path(raw_path);
+        let path = if is_special || scheme == "file" {
+            normalize_path(raw_path)
+        } else {
+            raw_path.to_string()
+        };
 
         Ok(Self {
             scheme,
@@ -231,10 +235,12 @@ impl Url {
         }
 
         // 1. If it parses as a standalone URL with a scheme (excluding single-letter Windows drive letters)
-        if let Ok(abs) = Url::parse(trimmed)
-            && (abs.scheme.len() > 1 || !matches!(abs.scheme.as_str(), "c" | "d" | "e" | "f" | "p"))
-        {
-            return Ok(abs);
+        if let Ok(abs) = Url::parse(trimmed) {
+            let is_drive_letter = abs.scheme.len() == 1
+                && abs.scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic());
+            if !is_drive_letter {
+                return Ok(abs);
+            }
         }
 
         // 2. Scheme-relative URL (e.g. "//cdn.example.org/lib.js")
@@ -255,11 +261,16 @@ impl Url {
             return Url::parse(&full);
         }
 
-        // 4. Query update (e.g. "?sort=asc")
+        // 4. Query update (e.g. "?sort=asc" or "?sort=asc#results")
         if let Some(q) = trimmed.strip_prefix('?') {
             let mut new_url = self.clone();
-            new_url.query = Some(q.to_string());
-            new_url.fragment = None;
+            if let Some(hash_pos) = q.find('#') {
+                new_url.query = Some(q[..hash_pos].to_string());
+                new_url.fragment = Some(q[hash_pos + 1..].to_string());
+            } else {
+                new_url.query = Some(q.to_string());
+                new_url.fragment = None;
+            }
             return Ok(new_url);
         }
 
