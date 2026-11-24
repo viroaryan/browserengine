@@ -65,29 +65,28 @@ fn render_layout_box(
     if let Some(id) = layout_box.node_id()
         && dom.node_type(id) == Some(NodeType::Element)
         && dom.tag_name(id).is_some_and(|t| t.eq_ignore_ascii_case("img"))
+        && let Some(src) = dom.get_attribute(id, "src")
     {
-        if let Some(src) = dom.get_attribute(id, "src") {
-            if let Some(img) = images.get(src) {
-                list.push(DisplayCommand::DrawImage {
-                    rect: layout_box.dimensions.content,
-                    image: img.clone(),
+        if let Some(img) = images.get(src) {
+            list.push(DisplayCommand::DrawImage {
+                rect: layout_box.dimensions.content,
+                image: img.clone(),
+            });
+        } else {
+            // Broken image placeholder border
+            list.push(DisplayCommand::Border {
+                rect: layout_box.dimensions.content,
+                widths: nirvana_layout::dimensions::EdgeSizes::new(1.0, 1.0, 1.0, 1.0),
+                color: nirvana_core::color::Rgba::new(200, 200, 200, 255),
+            });
+            if let Some(alt) = dom.get_attribute(id, "alt")
+                && !alt.is_empty()
+            {
+                list.push(DisplayCommand::Text {
+                    text: alt.to_string(),
+                    origin: layout_box.dimensions.content.origin,
+                    color: nirvana_core::color::Rgba::new(100, 100, 100, 255),
                 });
-            } else {
-                // Broken image placeholder border
-                list.push(DisplayCommand::Border {
-                    rect: layout_box.dimensions.content,
-                    widths: nirvana_layout::dimensions::EdgeSizes::new(1.0, 1.0, 1.0, 1.0),
-                    color: nirvana_core::color::Rgba::new(200, 200, 200, 255),
-                });
-                if let Some(alt) = dom.get_attribute(id, "alt") {
-                    if !alt.is_empty() {
-                        list.push(DisplayCommand::Text {
-                            text: alt.to_string(),
-                            origin: layout_box.dimensions.content.origin,
-                            color: nirvana_core::color::Rgba::new(100, 100, 100, 255),
-                        });
-                    }
-                }
             }
         }
     }

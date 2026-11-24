@@ -4,16 +4,20 @@ use crate::hit_test::{resolve_hit_target, HitTestResult};
 use nirvana_core::geometry::{Point, Size};
 use nirvana_css::ast::StyleSheet;
 use nirvana_css::parser::parse_css;
-use nirvana_dom::{DomTree, NodeType};
-use nirvana_gfx::builder::build_display_list;
+use nirvana_dom::node::NodeData;
+use nirvana_dom::{DomTree, NodeId, NodeType};
+use nirvana_gfx::builder::build_display_list_with_images;
 use nirvana_gfx::canvas::Canvas;
 use nirvana_gfx::display_list::DisplayList;
+use nirvana_gfx::image::{decode_image, ImageMap};
 use nirvana_html::parse_html;
 use nirvana_layout::box_type::LayoutBox;
-use nirvana_layout::layout::layout_document;
+use nirvana_layout::layout::layout_document_with_context;
+use nirvana_layout::tree_builder::LayoutContext;
 use nirvana_net::loader::ResourceLoader;
 use nirvana_style::compute::{compute_styles, StyleTree};
 use nirvana_url::Url;
+use std::sync::Arc;
 
 /// Orchestrates HTML parsing, CSS style computation, layout geometry,
 /// and pixel rasterization into a 32-bit RGBA framebuffer.
@@ -31,6 +35,7 @@ pub struct NirvanaEngine {
     canvas: Canvas,
     loader: ResourceLoader,
     current_url: Option<String>,
+    images: ImageMap,
 }
 
 impl NirvanaEngine {
@@ -49,6 +54,7 @@ impl NirvanaEngine {
             canvas: Canvas::new(width, height),
             loader: ResourceLoader::new(),
             current_url: None,
+            images: ImageMap::new(),
         }
     }
 
@@ -72,12 +78,20 @@ impl NirvanaEngine {
 
     /// Loads and parses an HTML document string, with optional user/author CSS.
     pub fn load_html(&mut self, html: &str, css: Option<&str>) {
-        self.dom = Some(parse_html(html));
+        let dom = parse_html(html);
+        self.images.clear();
+        self.fetch_and_decode_images(&dom, None);
+        self.dom = Some(dom);
         self.stylesheets.clear();
         self.scroll_x = 0.0;
         self.scroll_y = 0.0;
         self.display_list = None;
         self.current_url = None;
+
+        if let Some(ref d) = self.dom {
+            let inline_sheets = discover_inline_stylesheets(d);
+            self.stylesheets.extend(inline_sheets);
+        }
 
         if let Some(css_text) = css {
             let sheet = parse_css(css_text);
@@ -137,8 +151,14 @@ impl NirvanaEngine {
             }
         }
 
+        // Discover and load embedded images: <img src="...">
+        self.images.clear();
+        self.fetch_and_decode_images(&dom, Some(&url));
+
+        let inline_sheets = discover_inline_stylesheets(&dom);
         self.dom = Some(dom);
         self.stylesheets = external_sheets;
+        self.stylesheets.extend(inline_sheets);
         self.scroll_x = 0.0;
         self.scroll_y = 0.0;
         self.display_list = None;
@@ -175,12 +195,21 @@ impl NirvanaEngine {
         let sheets: Vec<&StyleSheet> = self.stylesheets.iter().collect();
         let style_tree = compute_styles(dom, &sheets);
 
+        let mut layout_ctx = LayoutContext::default();
+        for (node_id, src) in discover_images(dom) {
+            if let Some(img) = self.images.get(&src) {
+                layout_ctx
+                    .image_dimensions
+                    .insert(node_id, (img.width as f32, img.height as f32));
+            }
+        }
+
         let viewport = Size::new(self.width as f32, self.height as f32);
-        let layout_root = layout_document(dom, &style_tree, viewport);
+        let layout_root = layout_document_with_context(dom, &style_tree, viewport, &layout_ctx);
 
         let mut canvas = Canvas::new(self.width, self.height);
         let display_list = if let Some(ref root) = layout_root {
-            let list = build_display_list(root, &style_tree, dom);
+            let list = build_display_list_with_images(root, &style_tree, dom, &self.images);
             canvas.render_display_list_with_offset(&list, -self.scroll_x, -self.scroll_y);
             Some(list)
         } else {
@@ -191,6 +220,56 @@ impl NirvanaEngine {
         self.layout_root = layout_root;
         self.display_list = display_list;
         self.canvas = canvas;
+    }
+
+    fn fetch_and_decode_images(&mut self, dom: &DomTree, base_url: Option<&Url>) {
+        let discovered = discover_images(dom);
+        for (_node_id, src) in discovered {
+            if self.images.contains_key(&src) {
+                continue;
+            }
+
+            let img_url = match base_url {
+                Some(base) => match base.join(&src) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        eprintln!("Warning: failed to resolve image URL '{src}': {e}");
+                        continue;
+                    }
+                },
+                None => match Url::parse(&src) {
+                    Ok(u) => u,
+                    Err(_) => continue,
+                },
+            };
+
+            let resp = match self.loader.fetch(&img_url) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Warning: failed to fetch image at {img_url}: {e}");
+                    continue;
+                }
+            };
+
+            if resp.status < 200 || resp.status >= 300 {
+                eprintln!(
+                    "Warning: failed to load image at {}: HTTP {}",
+                    img_url, resp.status
+                );
+                continue;
+            }
+
+            match decode_image(&resp.body) {
+                Ok(decoded) => {
+                    let decoded_arc = Arc::new(decoded);
+                    self.images.insert(src.clone(), decoded_arc.clone());
+                    self.images.insert(img_url.as_str(), decoded_arc);
+                }
+                Err(e) => {
+                    eprintln!("Warning: failed to decode image at {img_url}: {e}");
+                }
+            }
+        }
     }
 
     /// Sets the viewport scroll offset to the specified coordinates, clamped to document bounds.
@@ -293,4 +372,50 @@ fn discover_linked_stylesheets(dom: &DomTree) -> Vec<String> {
         }
     }
     hrefs
+}
+
+fn discover_images(dom: &DomTree) -> Vec<(NodeId, String)> {
+    let mut images = Vec::new();
+    let mut stack = vec![dom.root_id()];
+    while let Some(node_id) = stack.pop() {
+        if dom.node_type(node_id) == Some(NodeType::Element)
+            && let Some(tag) = dom.tag_name(node_id)
+            && tag.eq_ignore_ascii_case("img")
+            && let Some(src) = dom.get_attribute(node_id, "src")
+        {
+            images.push((node_id, src.to_string()));
+        }
+        for child in dom.children(node_id).into_iter().rev() {
+            stack.push(child);
+        }
+    }
+    images
+}
+
+fn discover_inline_stylesheets(dom: &DomTree) -> Vec<StyleSheet> {
+    let mut sheets = Vec::new();
+    let mut stack = vec![dom.root_id()];
+    while let Some(node_id) = stack.pop() {
+        if dom.node_type(node_id) == Some(NodeType::Element)
+            && let Some(tag) = dom.tag_name(node_id)
+            && tag.eq_ignore_ascii_case("style")
+        {
+            let mut css_text = String::new();
+            for child in dom.children(node_id) {
+                if dom.node_type(child) == Some(NodeType::Text)
+                    && let Some(node) = dom.get_node(child)
+                    && let NodeData::Text(ref text) = node.data
+                {
+                    css_text.push_str(text);
+                }
+            }
+            if !css_text.trim().is_empty() {
+                sheets.push(parse_css(&css_text));
+            }
+        }
+        for child in dom.children(node_id).into_iter().rev() {
+            stack.push(child);
+        }
+    }
+    sheets
 }
