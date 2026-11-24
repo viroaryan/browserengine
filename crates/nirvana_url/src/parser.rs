@@ -195,6 +195,125 @@ impl Url {
     pub fn fragment(&self) -> Option<&str> {
         self.fragment.as_deref()
     }
+
+    /// Serializes this URL into a canonical WHATWG URL string.
+    pub fn as_str(&self) -> String {
+        let mut s = format!("{}:", self.scheme);
+        if let Some(ref h) = self.host {
+            s.push_str("//");
+            s.push_str(h);
+            let default_port = default_port_for_scheme(&self.scheme);
+            if self.port != 0 && self.port != default_port {
+                s.push_str(&format!(":{}", self.port));
+            }
+        } else if self.scheme == "file" {
+            s.push_str("//");
+        }
+
+        s.push_str(&self.path);
+
+        if let Some(ref q) = self.query {
+            s.push('?');
+            s.push_str(q);
+        }
+        if let Some(ref f) = self.fragment {
+            s.push('#');
+            s.push_str(f);
+        }
+        s
+    }
+
+    /// Resolves a relative or absolute URL string against this base URL according to WHATWG rules.
+    pub fn join(&self, input: &str) -> Result<Self, UrlError> {
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Ok(self.clone());
+        }
+
+        // 1. If it parses as a standalone URL with a scheme (excluding single-letter Windows drive letters)
+        if let Ok(abs) = Url::parse(trimmed)
+            && (abs.scheme.len() > 1 || !matches!(abs.scheme.as_str(), "c" | "d" | "e" | "f" | "p"))
+        {
+            return Ok(abs);
+        }
+
+        // 2. Scheme-relative URL (e.g. "//cdn.example.org/lib.js")
+        if trimmed.starts_with("//") {
+            let full = format!("{}:{}", self.scheme, trimmed);
+            return Url::parse(&full);
+        }
+
+        // 3. Root-relative path (e.g. "/app.css")
+        if trimmed.starts_with('/') {
+            let authority = self.format_authority();
+            let prefix = if self.host.is_some() || self.scheme == "file" {
+                format!("{}://{}", self.scheme, authority)
+            } else {
+                format!("{}:", self.scheme)
+            };
+            let full = format!("{}{}", prefix, trimmed);
+            return Url::parse(&full);
+        }
+
+        // 4. Query update (e.g. "?sort=asc")
+        if let Some(q) = trimmed.strip_prefix('?') {
+            let mut new_url = self.clone();
+            new_url.query = Some(q.to_string());
+            new_url.fragment = None;
+            return Ok(new_url);
+        }
+
+        // 5. Fragment update (e.g. "#section")
+        if let Some(f) = trimmed.strip_prefix('#') {
+            let mut new_url = self.clone();
+            new_url.fragment = Some(f.to_string());
+            return Ok(new_url);
+        }
+
+        // 6. Path-relative URL (e.g. "style.css", "../main.css")
+        let base_dir = match self.path.rfind('/') {
+            Some(idx) => &self.path[..=idx],
+            None => "/",
+        };
+        let combined = format!("{}{}", base_dir, trimmed);
+        let authority = self.format_authority();
+        let prefix = if self.host.is_some() || self.scheme == "file" {
+            format!("{}://{}", self.scheme, authority)
+        } else {
+            format!("{}:", self.scheme)
+        };
+        let full = format!("{}{}", prefix, combined);
+        Url::parse(&full)
+    }
+
+    fn format_authority(&self) -> String {
+        match &self.host {
+            Some(h) => {
+                let default_p = default_port_for_scheme(&self.scheme);
+                if self.port != 0 && self.port != default_p {
+                    format!("{}:{}", h, self.port)
+                } else {
+                    h.clone()
+                }
+            }
+            None => String::new(),
+        }
+    }
+}
+
+impl std::fmt::Display for Url {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+fn default_port_for_scheme(scheme: &str) -> u16 {
+    match scheme {
+        "http" | "ws" => 80,
+        "https" | "wss" => 443,
+        "ftp" => 21,
+        _ => 0,
+    }
 }
 
 /// Normalizes path segments removing '.' and resolving '..' dot segments.
