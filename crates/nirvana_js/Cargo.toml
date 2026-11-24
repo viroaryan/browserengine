@@ -1,0 +1,17 @@
+[package]
+name = "nirvana_js"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nirvana_core = { path = "../nirvana_core" }
+nirvana_dom = { path = "../nirvana_dom" }
+nirvana_html = { path = "../nirvana_html" }
+boa_engine = "0.22.0"
+boa_gc = "0.22.0"
+boa_wintertc = "0.22.0"
