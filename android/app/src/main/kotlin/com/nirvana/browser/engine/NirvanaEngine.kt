@@ -13,6 +13,17 @@ data class HitTarget(
 )
 
 /**
+ * High-resolution performance metrics for individual rendering lifecycle stages.
+ */
+data class FrameMetrics(
+    val parseMs: Float,
+    val styleMs: Float,
+    val layoutMs: Float,
+    val rasterMs: Float,
+    val totalMs: Float
+)
+
+/**
  * Idiomatic Kotlin wrapper around the high-performance Rust Nirvana Browser Engine.
  * Manages native lifecycle, HTML/CSS loading, layout execution, and pixel extraction.
  */
@@ -255,6 +266,26 @@ class NirvanaEngine(
         nativeClearStorage(nativePtr)
     }
 
+    /**
+     * Retrieves high-resolution timing metrics for the most recent render frame.
+     */
+    @Synchronized
+    fun getFrameMetrics(): FrameMetrics {
+        checkOpen()
+        val metrics = nativeGetFrameMetrics(nativePtr)
+        return if (metrics != null && metrics.size >= 5) {
+            FrameMetrics(
+                parseMs = metrics[0],
+                styleMs = metrics[1],
+                layoutMs = metrics[2],
+                rasterMs = metrics[3],
+                totalMs = metrics[4]
+            )
+        } else {
+            FrameMetrics(0f, 0f, 0f, 0f, 0f)
+        }
+    }
+
     private fun parseHitTargetJson(json: String): HitTarget? {
         val tagMatch = Regex("\"tag\"\\s*:\\s*\"([^\"]*)\"").find(json) ?: return null
         val tag = tagMatch.groupValues[1]
@@ -313,6 +344,7 @@ class NirvanaEngine(
     private external fun nativeStepTimers(enginePtr: Long, deltaMs: Long): Int
     private external fun nativeClearCookies(enginePtr: Long)
     private external fun nativeClearStorage(enginePtr: Long)
+    private external fun nativeGetFrameMetrics(enginePtr: Long): FloatArray?
 
     companion object {
         init {

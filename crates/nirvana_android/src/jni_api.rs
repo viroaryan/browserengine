@@ -603,6 +603,37 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeClear
     });
 }
 
+/// Retrieves high-resolution timing metrics for the most recent render frame.
+/// Returns float array: [parse_ms, style_ms, layout_ms, raster_ms, total_ms].
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetFrameMetrics(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jfloatArray {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        let m = engine.frame_metrics();
+        let metrics = [
+            m.parse_time_ms,
+            m.style_time_ms,
+            m.layout_time_ms,
+            m.raster_time_ms,
+            m.total_frame_time_ms,
+        ];
+        match env.new_float_array(5) {
+            Ok(arr) => {
+                let _ = env.set_float_array_region(&arr, 0, &metrics);
+                arr.into_raw()
+            }
+            Err(_) => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
+}
+
 fn escape_json(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {

@@ -20,6 +20,16 @@ use nirvana_url::Url;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// High-resolution performance metrics for individual rendering lifecycle stages.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct FrameMetrics {
+    pub parse_time_ms: f32,
+    pub style_time_ms: f32,
+    pub layout_time_ms: f32,
+    pub raster_time_ms: f32,
+    pub total_frame_time_ms: f32,
+}
+
 /// Orchestrates HTML parsing, CSS style computation, layout geometry,
 /// and pixel rasterization into a 32-bit RGBA framebuffer.
 #[derive(Debug)]
@@ -46,6 +56,7 @@ pub struct NirvanaEngine {
     cookie_jar: std::rc::Rc<std::cell::RefCell<nirvana_net::cookie::CookieJar>>,
     storage_backend: std::rc::Rc<std::cell::RefCell<nirvana_js::storage::StorageBackend>>,
     csp_policy: Option<nirvana_net::security::CspPolicy>,
+    last_metrics: FrameMetrics,
 }
 
 impl NirvanaEngine {
@@ -76,7 +87,14 @@ impl NirvanaEngine {
             cookie_jar: std::rc::Rc::new(std::cell::RefCell::new(nirvana_net::cookie::CookieJar::new())),
             storage_backend: std::rc::Rc::new(std::cell::RefCell::new(nirvana_js::storage::StorageBackend::new())),
             csp_policy: None,
+            last_metrics: FrameMetrics::default(),
         }
+    }
+
+    /// Returns the high-resolution performance metrics from the most recent rendering cycle.
+    #[inline]
+    pub fn frame_metrics(&self) -> FrameMetrics {
+        self.last_metrics
     }
 
     /// Returns the current viewport dimensions (width, height).
@@ -111,7 +129,9 @@ impl NirvanaEngine {
 
     /// Loads and parses an HTML document string, with optional user/author CSS.
     pub fn load_html(&mut self, html: &str, css: Option<&str>) {
+        let parse_start = std::time::Instant::now();
         let dom = parse_html(html);
+        self.last_metrics.parse_time_ms = parse_start.elapsed().as_secs_f32() * 1000.0;
         self.images.clear();
         self.fetch_and_decode_images(&dom, None);
         self.stylesheets.clear();
@@ -193,7 +213,9 @@ impl NirvanaEngine {
             .and_then(|h| nirvana_net::security::CspPolicy::parse(h));
 
         let html = resp.text().map_err(|e| format!("Invalid UTF-8 document: {e}"))?;
+        let parse_start = std::time::Instant::now();
         let dom = parse_html(html);
+        self.last_metrics.parse_time_ms = parse_start.elapsed().as_secs_f32() * 1000.0;
 
         // Discover and load linked external stylesheets: <link rel="stylesheet" href="...">
         let doc_origin = nirvana_net::security::Origin::from_url(&url);
@@ -313,6 +335,8 @@ impl NirvanaEngine {
 
     /// Executes the full styling, layout, and rasterization pipeline onto the canvas.
     pub fn render(&mut self) {
+        let total_start = std::time::Instant::now();
+
         let has_mutated = self
             .js_runtime
             .as_ref()
@@ -334,9 +358,12 @@ impl NirvanaEngine {
             return;
         };
 
+        let style_start = std::time::Instant::now();
         let sheets: Vec<&StyleSheet> = self.stylesheets.iter().collect();
         let style_tree = compute_styles(dom, &sheets);
+        let style_time_ms = style_start.elapsed().as_secs_f32() * 1000.0;
 
+        let layout_start = std::time::Instant::now();
         let mut layout_ctx = LayoutContext::default();
         for (node_id, src) in discover_images(dom) {
             if let Some(img) = self.images.get(&src) {
@@ -348,7 +375,9 @@ impl NirvanaEngine {
 
         let viewport = Size::new(self.width as f32, self.height as f32);
         let layout_root = layout_document_with_context(dom, &style_tree, viewport, &layout_ctx);
+        let layout_time_ms = layout_start.elapsed().as_secs_f32() * 1000.0;
 
+        let raster_start = std::time::Instant::now();
         let form_state = FormState {
             focused_node: self.focused_element,
             inputs: self.input_buffers.clone(),
@@ -368,6 +397,13 @@ impl NirvanaEngine {
         } else {
             None
         };
+        let raster_time_ms = raster_start.elapsed().as_secs_f32() * 1000.0;
+        let total_frame_time_ms = total_start.elapsed().as_secs_f32() * 1000.0;
+
+        self.last_metrics.style_time_ms = style_time_ms;
+        self.last_metrics.layout_time_ms = layout_time_ms;
+        self.last_metrics.raster_time_ms = raster_time_ms;
+        self.last_metrics.total_frame_time_ms = total_frame_time_ms;
 
         self.style_tree = Some(style_tree);
         self.layout_root = layout_root;
