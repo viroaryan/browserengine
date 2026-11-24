@@ -28,6 +28,8 @@ pub struct NirvanaEngine {
     height: u32,
     dom: Option<DomTree>,
     stylesheets: Vec<StyleSheet>,
+    external_stylesheets: Vec<StyleSheet>,
+    author_css: Option<StyleSheet>,
     style_tree: Option<StyleTree>,
     layout_root: Option<LayoutBox>,
     display_list: Option<DisplayList>,
@@ -51,6 +53,8 @@ impl NirvanaEngine {
             height,
             dom: None,
             stylesheets: Vec::new(),
+            external_stylesheets: Vec::new(),
+            author_css: None,
             style_tree: None,
             layout_root: None,
             display_list: None,
@@ -110,13 +114,9 @@ impl NirvanaEngine {
         self.focused_element = None;
         self.input_buffers.clear();
 
-        let inline_sheets = discover_inline_stylesheets(&dom);
-        self.stylesheets.extend(inline_sheets);
-
-        if let Some(css_text) = css {
-            let sheet = parse_css(css_text);
-            self.stylesheets.push(sheet);
-        }
+        self.external_stylesheets.clear();
+        self.author_css = css.map(parse_css);
+        self.rebuild_stylesheets(&dom);
 
         // Initialize SharedDom and JsRuntime
         let shared_dom = std::rc::Rc::new(std::cell::RefCell::new(dom));
@@ -187,9 +187,9 @@ impl NirvanaEngine {
         self.images.clear();
         self.fetch_and_decode_images(&dom, Some(&url));
 
-        let inline_sheets = discover_inline_stylesheets(&dom);
-        self.stylesheets = external_sheets;
-        self.stylesheets.extend(inline_sheets);
+        self.external_stylesheets = external_sheets;
+        self.author_css = None;
+        self.rebuild_stylesheets(&dom);
         self.scroll_x = 0.0;
         self.scroll_y = 0.0;
         self.display_list = None;
@@ -232,13 +232,21 @@ impl NirvanaEngine {
 
     /// Executes the full styling, layout, and rasterization pipeline onto the canvas.
     pub fn render(&mut self) {
-        if let Some(ref js) = self.js_runtime
-            && js.has_mutated()
-        {
+        let has_mutated = self
+            .js_runtime
+            .as_ref()
+            .map(|js| js.has_mutated())
+            .unwrap_or(false);
+
+        if has_mutated {
             if let Some(ref s_dom) = self.shared_dom {
-                self.dom = Some(s_dom.borrow().clone());
+                let fresh_dom = s_dom.borrow().clone();
+                self.rebuild_stylesheets(&fresh_dom);
+                self.dom = Some(fresh_dom);
             }
-            js.clear_mutated();
+            if let Some(ref js) = self.js_runtime {
+                js.clear_mutated();
+            }
         }
 
         let Some(ref dom) = self.dom else {
@@ -418,21 +426,20 @@ impl NirvanaEngine {
     /// and triggers re-rendering. If a non-input element is clicked, blurs.
     pub fn handle_click(&mut self, screen_x: f32, screen_y: f32) -> Option<HitTestResult> {
         let hit = self.hit_test(screen_x, screen_y);
+        let mut default_prevented = false;
         if let Some(ref result) = hit {
             // Dispatch click event to JS runtime
             let mut dom_mutated = false;
             if let Some(ref mut js) = self.js_runtime {
-                let _ = js.dispatch_event(result.node_id, "click");
+                if let Ok(allowed) = js.dispatch_event(result.node_id, "click") {
+                    default_prevented = !allowed;
+                }
                 if js.has_mutated() {
                     dom_mutated = true;
-                    js.clear_mutated();
                 }
             }
 
             if dom_mutated {
-                if let Some(ref s_dom) = self.shared_dom {
-                    self.dom = Some(s_dom.borrow().clone());
-                }
                 self.render();
             }
 
@@ -476,7 +483,15 @@ impl NirvanaEngine {
         } else {
             self.blur();
         }
-        hit
+
+        if default_prevented {
+            hit.map(|mut h| {
+                h.href = None;
+                h
+            })
+        } else {
+            hit
+        }
     }
 
     /// Focuses the given form element and places the caret cursor at `cursor_index`.
@@ -554,6 +569,9 @@ impl NirvanaEngine {
         curr_text.insert_str(byte_pos, text);
         cursor_idx += text.chars().count();
 
+        if let Some(ref s_dom) = self.shared_dom {
+            let _ = s_dom.borrow_mut().set_attribute(node_id, "value", &curr_text);
+        }
         if let Some(ref mut dom) = self.dom {
             let _ = dom.set_attribute(node_id, "value", &curr_text);
         }
@@ -593,6 +611,9 @@ impl NirvanaEngine {
         curr_text.replace_range(byte_start..byte_end, "");
         cursor_idx -= 1;
 
+        if let Some(ref s_dom) = self.shared_dom {
+            let _ = s_dom.borrow_mut().set_attribute(node_id, "value", &curr_text);
+        }
         if let Some(ref mut dom) = self.dom {
             let _ = dom.set_attribute(node_id, "value", &curr_text);
         }
@@ -649,6 +670,15 @@ impl NirvanaEngine {
         }
     }
 
+    fn rebuild_stylesheets(&mut self, dom: &DomTree) {
+        let mut sheets = self.external_stylesheets.clone();
+        sheets.extend(discover_inline_stylesheets(dom));
+        if let Some(ref auth) = self.author_css {
+            sheets.push(auth.clone());
+        }
+        self.stylesheets = sheets;
+    }
+
     fn fetch_and_run_scripts(
         &mut self,
         shared_dom: &std::rc::Rc<std::cell::RefCell<DomTree>>,
@@ -662,14 +692,12 @@ impl NirvanaEngine {
         let base_url = base_url_str.and_then(|u| Url::parse(u).ok());
         for (src_opt, content_opt) in scripts {
             if let Some(src) = src_opt {
-                if let Some(ref base) = base_url {
-                    let script_url = match base.join(&src) {
-                        Ok(u) => u,
-                        Err(e) => {
-                            eprintln!("Warning: failed to resolve script URL '{src}': {e}");
-                            continue;
-                        }
-                    };
+                let script_url_opt = if let Some(ref base) = base_url {
+                    base.join(&src).ok()
+                } else {
+                    Url::parse(&src).ok()
+                };
+                if let Some(script_url) = script_url_opt {
                     let resp = match self.loader.fetch(&script_url) {
                         Ok(r) => r,
                         Err(e) => {
@@ -701,10 +729,6 @@ impl NirvanaEngine {
         };
         let res = js.eval(script);
         if js.has_mutated() {
-            if let Some(ref s_dom) = self.shared_dom {
-                self.dom = Some(s_dom.borrow().clone());
-            }
-            js.clear_mutated();
             self.render();
         }
         res
@@ -719,13 +743,9 @@ impl NirvanaEngine {
             executed = js.step_timers(delta_ms);
             if js.has_mutated() {
                 mutated = true;
-                js.clear_mutated();
             }
         }
         if mutated {
-            if let Some(ref s_dom) = self.shared_dom {
-                self.dom = Some(s_dom.borrow().clone());
-            }
             self.render();
         }
         executed

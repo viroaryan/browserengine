@@ -140,3 +140,60 @@ fn test_dom_input_value_property() {
         }
     }
 }
+
+#[test]
+fn test_inner_html_entity_escaping_and_void_elements() {
+    let html = r#"<div id="wrapper"><input id="inp" type="text"><p title="&quot;quotes&quot;">a &lt; b &amp; c</p></div>"#;
+    let dom = Rc::new(RefCell::new(parse_html(html)));
+    let mut runtime = JsRuntime::with_dom(dom.clone());
+
+    let inner = runtime
+        .eval("document.getElementById('wrapper').innerHTML")
+        .expect("eval failed");
+
+    // Void element <input> must not have closing </input>
+    assert!(!inner.contains("</input>"));
+    assert!(inner.contains("<input"));
+
+    // Entities must be escaped
+    assert!(inner.contains("a &lt; b &amp; c"));
+    assert!(inner.contains("&quot;quotes&quot;"));
+
+    // Round-trip innerHTML and check textContent
+    runtime
+        .eval("document.getElementById('wrapper').innerHTML = document.getElementById('wrapper').innerHTML;")
+        .expect("roundtrip eval failed");
+
+    let text = runtime
+        .eval("document.getElementById('wrapper').textContent")
+        .expect("eval failed");
+    assert_eq!(text, "a < b & c");
+}
+
+#[test]
+fn test_style_property_removal_on_empty_string() {
+    let html = r#"<div id="card" style="color: red; width: 100px;"></div>"#;
+    let dom = Rc::new(RefCell::new(parse_html(html)));
+    let mut runtime = JsRuntime::with_dom(dom.clone());
+
+    // Setting style property to empty string removes it
+    runtime
+        .eval("document.getElementById('card').style.color = '';")
+        .expect("eval failed");
+
+    let style = runtime
+        .eval("document.getElementById('card').getAttribute('style')")
+        .expect("eval failed");
+    assert!(!style.contains("color"));
+    assert!(style.contains("width: 100px"));
+
+    // Removing remaining property cleans up style attribute entirely
+    runtime
+        .eval("document.getElementById('card').style.width = '';")
+        .expect("eval failed");
+
+    let style2 = runtime
+        .eval("document.getElementById('card').getAttribute('style')")
+        .expect("eval failed");
+    assert_eq!(style2, "null");
+}

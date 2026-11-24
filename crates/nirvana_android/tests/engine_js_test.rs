@@ -212,3 +212,124 @@ fn test_engine_step_timers_api() {
     }
     assert_eq!(status_text2, "completed");
 }
+
+#[test]
+fn test_form_input_and_js_value_synchronization() {
+    let mut engine = NirvanaEngine::new(400, 300);
+    let html = r#"
+        <html>
+            <body style="margin: 0px;">
+                <input id="user-input" value="hello" style="width: 200px; height: 40px;">
+                <div id="output">idle</div>
+            </body>
+        </html>
+    "#;
+    engine.load_html(html, None);
+    engine.render();
+
+    // 1. User taps input and positions caret at end, then types "_world"
+    let _ = engine.handle_click(10.0, 10.0);
+    engine.set_cursor_index(5);
+    engine.insert_text("_world");
+
+    // 2. JavaScript reads the input value via document.getElementById('user-input').value
+    let res = engine
+        .evaluate_js("document.getElementById('user-input').value")
+        .expect("eval input value");
+    assert_eq!(res, "hello_world");
+
+    // 3. JavaScript modifies another element, triggering engine re-render
+    let _ = engine.evaluate_js("document.getElementById('output').textContent = 'sync_done';");
+
+    // 4. Verify that form control still contains "hello_world" and was not obliterated
+    assert_eq!(engine.focused_text().as_deref(), Some("hello_world"));
+    let res2 = engine
+        .evaluate_js("document.getElementById('user-input').value")
+        .expect("eval input value after re-render");
+    assert_eq!(res2, "hello_world");
+}
+
+#[test]
+fn test_dynamic_style_tag_injection_updates_cascade() {
+    let mut engine = NirvanaEngine::new(400, 300);
+    let html = r#"
+        <html>
+            <head>
+                <style>
+                    #box { width: 100px; height: 100px; background-color: #ff0000; }
+                </style>
+            </head>
+            <body style="margin: 0px;">
+                <div id="box"></div>
+            </body>
+        </html>
+    "#;
+    engine.load_html(html, None);
+    engine.render();
+
+    // Initial width is 100px
+    let dom = engine.dom().expect("dom exists");
+    let box_id = dom
+        .nodes()
+        .find(|&n| dom.get_attribute(n, "id") == Some("box"))
+        .expect("box element exists");
+
+    fn find_box(
+        b: &nirvana_layout::LayoutBox,
+        id: nirvana_dom::NodeId,
+    ) -> Option<&nirvana_layout::LayoutBox> {
+        if b.node_id() == Some(id) {
+            return Some(b);
+        }
+        for child in &b.children {
+            if let Some(found) = find_box(child, id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    let initial_box = find_box(engine.layout_root().unwrap(), box_id).unwrap();
+    assert_eq!(initial_box.dimensions.content.width(), 100.0);
+
+    // Dynamically inject a <style> tag setting #box { width: 350px; }
+    let _ = engine.evaluate_js(
+        r#"
+        var style = document.createElement('style');
+        style.textContent = '#box { width: 350px; }';
+        document.body.appendChild(style);
+    "#,
+    );
+
+    // Re-computed layout must now have width = 350px
+    let updated_box = find_box(engine.layout_root().unwrap(), box_id).unwrap();
+    assert_eq!(updated_box.dimensions.content.width(), 350.0);
+}
+
+#[test]
+fn test_prevent_default_cancels_link_navigation() {
+    let mut engine = NirvanaEngine::new(400, 300);
+    let html = r#"
+        <html>
+            <body style="margin: 0px;">
+                <a id="nav-link" href="https://nirvanabrowser.org" style="display: block; width: 150px; height: 50px;">Click Me</a>
+                <script>
+                    var link = document.getElementById('nav-link');
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                    });
+                </script>
+            </body>
+        </html>
+    "#;
+    engine.load_html(html, None);
+    engine.render();
+
+    // Click on link at (20, 20)
+    let hit = engine.handle_click(20.0, 20.0);
+    assert!(hit.is_some());
+    let hit_res = hit.unwrap();
+    // Default was prevented by JS, so href must be None (suppressed navigation)
+    assert_eq!(hit_res.href, None);
+    assert_eq!(hit_res.tag, "a");
+}

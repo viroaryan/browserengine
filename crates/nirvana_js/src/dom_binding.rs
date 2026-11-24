@@ -453,8 +453,9 @@ pub fn create_element_object(
     let realm = context.realm().clone();
 
     // Build raw style object
+    let node_attr = Attribute::READONLY | Attribute::NON_ENUMERABLE;
     let raw_style_obj = ObjectInitializer::new(context)
-        .property(js_string!("__nodeId"), raw_id, Attribute::NON_ENUMERABLE)
+        .property(js_string!("__nodeId"), raw_id, node_attr)
         .function(style_get_fn, js_string!("getProperty"), 1)
         .function(style_set_fn, js_string!("setProperty"), 2)
         .build();
@@ -479,7 +480,7 @@ pub fn create_element_object(
     let tag_get_js = get_tag_fn.to_js_function(&realm);
 
     let element = ObjectInitializer::new(context)
-        .property(js_string!("__nodeId"), raw_id, Attribute::NON_ENUMERABLE)
+        .property(js_string!("__nodeId"), raw_id, node_attr)
         .property(js_string!("style"), style_val, Attribute::all())
         .function(get_attr_fn, js_string!("getAttribute"), 1)
         .function(set_attr_fn, js_string!("setAttribute"), 2)
@@ -558,6 +559,37 @@ pub fn serialize_inner_html(dom: &DomTree, node_id: NodeId) -> String {
     out
 }
 
+fn is_void_element(tag: &str) -> bool {
+    matches!(
+        tag.to_ascii_lowercase().as_str(),
+        "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta"
+            | "param" | "source" | "track" | "wbr"
+    )
+}
+
+fn escape_html_text(s: &str, out: &mut String) {
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            other => out.push(other),
+        }
+    }
+}
+
+fn escape_html_attribute(s: &str, out: &mut String) {
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '"' => out.push_str("&quot;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            other => out.push(other),
+        }
+    }
+}
+
 fn serialize_node_html(dom: &DomTree, node_id: NodeId, out: &mut String) {
     let Some(node) = dom.get_node(node_id) else {
         return;
@@ -570,18 +602,20 @@ fn serialize_node_html(dom: &DomTree, node_id: NodeId, out: &mut String) {
                 out.push(' ');
                 out.push_str(k);
                 out.push_str("=\"");
-                out.push_str(v);
+                escape_html_attribute(v, out);
                 out.push('"');
             }
             out.push('>');
-            for child in dom.children(node_id) {
-                serialize_node_html(dom, child, out);
+            if !is_void_element(&elem.tag_name) {
+                for child in dom.children(node_id) {
+                    serialize_node_html(dom, child, out);
+                }
+                out.push_str("</");
+                out.push_str(&elem.tag_name);
+                out.push('>');
             }
-            out.push_str("</");
-            out.push_str(&elem.tag_name);
-            out.push('>');
         }
-        NodeData::Text(t) => out.push_str(t),
+        NodeData::Text(t) => escape_html_text(t, out),
         NodeData::Comment(c) => {
             out.push_str("<!--");
             out.push_str(c);
@@ -600,17 +634,28 @@ pub fn set_inner_html(dom: &mut DomTree, node_id: NodeId, html: &str) {
     let root = parsed.root_id();
     let mut fragment_children = Vec::new();
 
+    let mut head_id = None;
     let mut body_id = None;
     for n in parsed.nodes() {
-        if parsed.tag_name(n).map(|t| t.eq_ignore_ascii_case("body")).unwrap_or(false) {
-            body_id = Some(n);
+        if let Some(t) = parsed.tag_name(n) {
+            if t.eq_ignore_ascii_case("head") && head_id.is_none() {
+                head_id = Some(n);
+            } else if t.eq_ignore_ascii_case("body") && body_id.is_none() {
+                body_id = Some(n);
+            }
+        }
+        if head_id.is_some() && body_id.is_some() {
             break;
         }
     }
 
+    if let Some(hid) = head_id {
+        fragment_children.extend(parsed.children(hid));
+    }
     if let Some(bid) = body_id {
         fragment_children.extend(parsed.children(bid));
-    } else {
+    }
+    if fragment_children.is_empty() {
         fragment_children.extend(parsed.children(root));
     }
 
@@ -678,17 +723,24 @@ pub fn set_style_property(dom: &mut DomTree, node_id: NodeId, prop: &str, val: &
         }
     }
 
-    if let Some(existing) = props.iter_mut().find(|(k, _)| k == &prop_kebab) {
-        existing.1 = val.to_string();
+    let val_trimmed = val.trim();
+    if val_trimmed.is_empty() {
+        props.retain(|(k, _)| k != &prop_kebab);
+    } else if let Some(existing) = props.iter_mut().find(|(k, _)| k == &prop_kebab) {
+        existing.1 = val_trimmed.to_string();
     } else {
-        props.push((prop_kebab, val.to_string()));
+        props.push((prop_kebab, val_trimmed.to_string()));
     }
 
-    let mut new_style = String::new();
-    for (k, v) in props {
-        new_style.push_str(&format!("{k}: {v}; "));
+    if props.is_empty() {
+        let _ = dom.remove_attribute(node_id, "style");
+    } else {
+        let mut new_style = String::new();
+        for (k, v) in props {
+            new_style.push_str(&format!("{k}: {v}; "));
+        }
+        let _ = dom.set_attribute(node_id, "style", new_style.trim());
     }
-    let _ = dom.set_attribute(node_id, "style", new_style.trim());
 }
 
 fn camel_to_kebab(s: &str) -> String {
