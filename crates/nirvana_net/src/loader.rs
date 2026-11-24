@@ -9,6 +9,7 @@ use nirvana_url::Url;
 use std::sync::Arc;
 
 /// Central coordinator for loading web resources across all supported protocols.
+#[derive(Debug)]
 pub struct ResourceLoader {
     handlers: Vec<Box<dyn ProtocolHandler>>,
     cache: Arc<ResourceCache>,

@@ -52,6 +52,23 @@ class NirvanaEngine(
     }
 
     /**
+     * Navigates to a given URL string over the network or protocol handler.
+     * Fetches document, resolves external linked stylesheets, and executes layout rendering.
+     * Returns true on success, false on failure.
+     */
+    fun navigate(url: String): Boolean {
+        checkOpen()
+        return nativeNavigate(nativePtr, url)
+    }
+
+    /** The canonical URL of the currently loaded document, or null if none. */
+    val currentUrl: String?
+        get() {
+            checkOpen()
+            return nativeGetCurrentUrl(nativePtr)
+        }
+
+    /**
      * Resizes the engine's viewport dimensions.
      */
     fun resize(newWidth: Int, newHeight: Int) {
@@ -179,6 +196,8 @@ class NirvanaEngine(
     private external fun nativeGetScrollY(enginePtr: Long): Float
     private external fun nativeGetMaxScrollY(enginePtr: Long): Float
     private external fun nativeHitTest(enginePtr: Long, x: Float, y: Float): String?
+    private external fun nativeNavigate(enginePtr: Long, url: String): Boolean
+    private external fun nativeGetCurrentUrl(enginePtr: Long): String?
 
     companion object {
         init {

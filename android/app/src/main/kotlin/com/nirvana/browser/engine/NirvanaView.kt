@@ -37,6 +37,7 @@ class NirvanaView @JvmOverloads constructor(
     private var currentHtml: String = "<html><body><h1>Nirvana Browser</h1></body></html>"
     private var currentCss: String = ""
     private var onLinkClickListener: OnLinkClickListener? = null
+    private val networkExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private val scroller: OverScroller = OverScroller(context)
     private val gestureDetector: GestureDetector
@@ -102,7 +103,12 @@ class NirvanaView @JvmOverloads constructor(
                 val eng = engine ?: return false
                 val hit = eng.hitTest(e.x, e.y)
                 if (hit != null && !hit.href.isNullOrEmpty()) {
-                    onLinkClickListener?.onLinkClick(hit.href)
+                    val href = hit.href
+                    if (onLinkClickListener != null) {
+                        onLinkClickListener?.onLinkClick(href)
+                    } else {
+                        loadUrl(href)
+                    }
                     return true
                 }
                 return super.onSingleTapUp(e)
@@ -129,6 +135,26 @@ class NirvanaView @JvmOverloads constructor(
             eng.loadHtml(html, css)
             eng.render()
             drawFrame()
+        }
+    }
+
+    /**
+     * Navigates to a web URL asynchronously on a background worker thread.
+     * On network completion, dispatches frame redraw back to the UI thread.
+     */
+    fun loadUrl(url: String) {
+        val eng = engine ?: NirvanaEngine(width.coerceAtLeast(1), height.coerceAtLeast(1)).also {
+            engine = it
+            allocateBuffers(it.width, it.height)
+        }
+
+        networkExecutor.execute {
+            val success = eng.navigate(url)
+            if (success) {
+                post {
+                    drawFrame()
+                }
+            }
         }
     }
 

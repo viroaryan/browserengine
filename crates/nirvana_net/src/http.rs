@@ -7,6 +7,7 @@ use nirvana_url::Url;
 use std::collections::HashMap;
 
 /// Protocol handler for `http://` and `https://` URLs.
+#[derive(Debug, Default)]
 pub struct HttpHandler;
 
 impl ProtocolHandler for HttpHandler {

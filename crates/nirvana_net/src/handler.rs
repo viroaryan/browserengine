@@ -6,7 +6,7 @@ use nirvana_url::Url;
 use std::path::Path;
 
 /// Interface for handling specific URL schemes (e.g. `http`, `file`, `data`).
-pub trait ProtocolHandler: Send + Sync {
+pub trait ProtocolHandler: Send + Sync + std::fmt::Debug {
     /// Returns true if this handler can serve the given URL scheme.
     fn can_handle(&self, scheme: &str) -> bool;
 
@@ -15,6 +15,7 @@ pub trait ProtocolHandler: Send + Sync {
 }
 
 /// Protocol handler for local `file://` URLs.
+#[derive(Debug, Default)]
 pub struct FileHandler;
 
 impl ProtocolHandler for FileHandler {
@@ -43,6 +44,7 @@ impl ProtocolHandler for FileHandler {
 }
 
 /// Protocol handler for `data:` inline URIs.
+#[derive(Debug, Default)]
 pub struct DataUriHandler;
 
 impl ProtocolHandler for DataUriHandler {
