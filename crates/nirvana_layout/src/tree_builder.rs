@@ -56,34 +56,66 @@ fn build_box(
                 Display::Inline => BoxType::InlineNode(node_id),
             };
 
-            // Detect replaced element (<img>)
-            if dom.tag_name(node_id).is_some_and(|t| t.eq_ignore_ascii_case("img")) {
-                let attr_w = dom.get_attribute(node_id, "width").and_then(|s| s.parse::<f32>().ok());
-                let attr_h = dom.get_attribute(node_id, "height").and_then(|s| s.parse::<f32>().ok());
+            // Detect replaced elements (<img>, <input>, <textarea>, <button>)
+            if let Some(tag) = dom.tag_name(node_id) {
+                if tag.eq_ignore_ascii_case("img") {
+                    let attr_w = dom.get_attribute(node_id, "width").and_then(|s| s.parse::<f32>().ok());
+                    let attr_h = dom.get_attribute(node_id, "height").and_then(|s| s.parse::<f32>().ok());
 
-                let (iw, ih) = if let Some(&(w, h)) = context.image_dimensions.get(&node_id) {
-                    (w, h)
-                } else {
-                    (16.0, 16.0)
-                };
-
-                let effective_w = attr_w.unwrap_or_else(|| {
-                    if let Some(ah) = attr_h {
-                        if ih > 0.0 { ah * (iw / ih) } else { iw }
+                    let (iw, ih) = if let Some(&(w, h)) = context.image_dimensions.get(&node_id) {
+                        (w, h)
                     } else {
-                        iw
-                    }
-                });
+                        (16.0, 16.0)
+                    };
 
-                let effective_h = attr_h.unwrap_or_else(|| {
-                    if let Some(aw) = attr_w {
-                        if iw > 0.0 { aw * (ih / iw) } else { ih }
-                    } else {
-                        ih
-                    }
-                });
+                    let effective_w = attr_w.unwrap_or_else(|| {
+                        if let Some(ah) = attr_h {
+                            if ih > 0.0 { ah * (iw / ih) } else { iw }
+                        } else {
+                            iw
+                        }
+                    });
 
-                intrinsic_size = Some(nirvana_core::geometry::Size::new(effective_w, effective_h));
+                    let effective_h = attr_h.unwrap_or_else(|| {
+                        if let Some(aw) = attr_w {
+                            if iw > 0.0 { aw * (ih / iw) } else { ih }
+                        } else {
+                            ih
+                        }
+                    });
+
+                    intrinsic_size = Some(nirvana_core::geometry::Size::new(effective_w, effective_h));
+                } else if tag.eq_ignore_ascii_case("input") {
+                    let attr_w = dom.get_attribute(node_id, "width").and_then(|s| s.parse::<f32>().ok());
+                    let attr_h = dom.get_attribute(node_id, "height").and_then(|s| s.parse::<f32>().ok());
+                    let size_cols = dom.get_attribute(node_id, "size").and_then(|s| s.parse::<f32>().ok());
+
+                    let default_w = size_cols.map(|c| (c * 8.0).max(30.0)).unwrap_or(160.0);
+                    let default_h = 24.0;
+
+                    let effective_w = attr_w.unwrap_or(default_w);
+                    let effective_h = attr_h.unwrap_or(default_h);
+                    intrinsic_size = Some(nirvana_core::geometry::Size::new(effective_w, effective_h));
+                } else if tag.eq_ignore_ascii_case("textarea") {
+                    let attr_w = dom.get_attribute(node_id, "width").and_then(|s| s.parse::<f32>().ok());
+                    let attr_h = dom.get_attribute(node_id, "height").and_then(|s| s.parse::<f32>().ok());
+                    let cols = dom.get_attribute(node_id, "cols").and_then(|s| s.parse::<f32>().ok());
+                    let rows = dom.get_attribute(node_id, "rows").and_then(|s| s.parse::<f32>().ok());
+
+                    let default_w = cols.map(|c| (c * 8.0).max(40.0)).unwrap_or(200.0);
+                    let default_h = rows.map(|r| (r * 18.0).max(24.0)).unwrap_or(60.0);
+
+                    let effective_w = attr_w.unwrap_or(default_w);
+                    let effective_h = attr_h.unwrap_or(default_h);
+                    intrinsic_size = Some(nirvana_core::geometry::Size::new(effective_w, effective_h));
+                } else if tag.eq_ignore_ascii_case("button") {
+                    let attr_w = dom.get_attribute(node_id, "width").and_then(|s| s.parse::<f32>().ok());
+                    let attr_h = dom.get_attribute(node_id, "height").and_then(|s| s.parse::<f32>().ok());
+
+                    let effective_w = attr_w.unwrap_or(80.0);
+                    let effective_h = attr_h.unwrap_or(24.0);
+                    intrinsic_size = Some(nirvana_core::geometry::Size::new(effective_w, effective_h));
+                }
             }
 
             b_type

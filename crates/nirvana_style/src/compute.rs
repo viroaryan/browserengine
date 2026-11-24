@@ -137,7 +137,7 @@ fn apply_declaration(computed: &mut ComputedValues, decl: &Declaration) {
             if let PropertyValue::Keyword(k) = &decl.value {
                 match k.to_ascii_lowercase().as_str() {
                     "block" => computed.display = Display::Block,
-                    "inline" => computed.display = Display::Inline,
+                    "inline" | "inline-block" => computed.display = Display::Inline,
                     "none" => computed.display = Display::None,
                     _ => {}
                 }

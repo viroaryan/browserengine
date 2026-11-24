@@ -14,8 +14,19 @@ head, script, style, link, meta, title {
     display: none;
 }
 
-span, a, b, i, strong, em, img, label, input, button {
+span, a, b, i, strong, em, img, label {
     display: inline;
+}
+
+input, textarea, button {
+    display: inline;
+    border-width: 1px;
+    background-color: #ffffff;
+    color: #000000;
+    padding-top: 2px;
+    padding-right: 4px;
+    padding-bottom: 2px;
+    padding-left: 4px;
 }
 "#;
 

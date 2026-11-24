@@ -42,7 +42,7 @@
 # Progress Ledger: Phase 11 - Form Controls, User Input & Soft Keyboard (IME) Integration
 
 ## Task Status
-- [ ] Task 1: Form Controls UA Styling & Layout Sizing (`nirvana_style`, `nirvana_layout`)
+- [x] Task 1: Form Controls UA Styling & Layout Sizing (`nirvana_style`, `nirvana_layout`)
 - [ ] Task 2: Caret & Selection Display Commands (`nirvana_gfx`)
 - [ ] Task 3: Input State Management & Engine Editing APIs (`nirvana_android`)
 - [ ] Task 4: JNI Bridge for Input & IME (`crates/nirvana_android`)
