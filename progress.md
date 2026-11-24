@@ -39,3 +39,15 @@
 ---
 **Phase 10 Status:** COMPLETED & SIGNED OFF. All tests passing (11/11 crates), 0 clippy warnings.
 
+# Progress Ledger: Phase 11 - Form Controls, User Input & Soft Keyboard (IME) Integration
+
+## Task Status
+- [ ] Task 1: Form Controls UA Styling & Layout Sizing (`nirvana_style`, `nirvana_layout`)
+- [ ] Task 2: Caret & Selection Display Commands (`nirvana_gfx`)
+- [ ] Task 3: Input State Management & Engine Editing APIs (`nirvana_android`)
+- [ ] Task 4: JNI Bridge for Input & IME (`crates/nirvana_android`)
+- [ ] Task 5: Android `NirvanaView.kt` Soft Keyboard Integration
+- [ ] Task 6: End-to-End User Input Test & Full Workspace Verification
+- [ ] Whole-Branch Review & Verification
+
+
