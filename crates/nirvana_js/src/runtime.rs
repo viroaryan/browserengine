@@ -28,6 +28,8 @@ pub struct JsRuntime {
     dom_handle: Option<DomHandle>,
     storage_backend: Rc<RefCell<StorageBackend>>,
     current_origin: Rc<RefCell<String>>,
+    current_url: Rc<RefCell<String>>,
+    cookie_jar: Rc<RefCell<nirvana_net::cookie::CookieJar>>,
 }
 
 impl Default for JsRuntime {
@@ -43,6 +45,8 @@ impl JsRuntime {
         let timer_queue = TimerQueue::new();
         let storage_backend = Rc::new(RefCell::new(StorageBackend::new()));
         let current_origin = Rc::new(RefCell::new("null".to_string()));
+        let current_url = Rc::new(RefCell::new("about:blank".to_string()));
+        let cookie_jar = Rc::new(RefCell::new(nirvana_net::cookie::CookieJar::new()));
 
         let _ = init_console(&mut context, log_store.clone());
         let _ = init_timers(&mut context, timer_queue.clone());
@@ -55,31 +59,15 @@ impl JsRuntime {
             dom_handle: None,
             storage_backend,
             current_origin,
+            current_url,
+            cookie_jar,
         }
     }
 
     pub fn with_dom(dom: SharedDom) -> Self {
-        let mut context = Context::default();
-        let log_store: LogStore = Arc::new(Mutex::new(Vec::new()));
-        let timer_queue = TimerQueue::new();
-        let storage_backend = Rc::new(RefCell::new(StorageBackend::new()));
-        let current_origin = Rc::new(RefCell::new("null".to_string()));
-
-        let _ = init_console(&mut context, log_store.clone());
-        let _ = init_timers(&mut context, timer_queue.clone());
-        init_storage(&mut context, storage_backend.clone(), current_origin.clone());
-
-        let handle = DomHandle::new(dom);
-        let _ = init_dom(&mut context, handle.clone());
-
-        Self {
-            context,
-            log_store,
-            timer_queue,
-            dom_handle: Some(handle),
-            storage_backend,
-            current_origin,
-        }
+        let mut runtime = Self::new();
+        let _ = runtime.bind_dom(dom);
+        runtime
     }
 
     pub fn with_dom_and_storage(
@@ -87,26 +75,22 @@ impl JsRuntime {
         storage_backend: Rc<RefCell<StorageBackend>>,
         origin: &str,
     ) -> Self {
-        let mut context = Context::default();
-        let log_store: LogStore = Arc::new(Mutex::new(Vec::new()));
-        let timer_queue = TimerQueue::new();
-        let current_origin = Rc::new(RefCell::new(origin.to_string()));
+        let mut runtime = Self::new();
+        runtime.storage_backend = storage_backend;
+        runtime.set_origin(origin);
+        let _ = runtime.bind_dom(dom);
+        runtime
+    }
 
-        let _ = init_console(&mut context, log_store.clone());
-        let _ = init_timers(&mut context, timer_queue.clone());
-        init_storage(&mut context, storage_backend.clone(), current_origin.clone());
-
-        let handle = DomHandle::new(dom);
-        let _ = init_dom(&mut context, handle.clone());
-
-        Self {
-            context,
-            log_store,
-            timer_queue,
-            dom_handle: Some(handle),
-            storage_backend,
-            current_origin,
-        }
+    pub fn bind_dom(&mut self, dom: SharedDom) -> Result<(), String> {
+        let handle = DomHandle::new_with_cookies(
+            dom,
+            self.cookie_jar.clone(),
+            self.current_url.clone(),
+        );
+        init_dom(&mut self.context, handle.clone()).map_err(|e| format!("{e}"))?;
+        self.dom_handle = Some(handle);
+        Ok(())
     }
 
     pub fn set_origin(&mut self, origin: &str) {
@@ -115,6 +99,29 @@ impl JsRuntime {
 
     pub fn origin(&self) -> String {
         self.current_origin.borrow().clone()
+    }
+
+    pub fn set_url(&mut self, url_str: &str) {
+        *self.current_url.borrow_mut() = url_str.to_string();
+        if let Ok(url) = nirvana_url::Url::parse(url_str) {
+            let origin = nirvana_net::security::Origin::from_url(&url).as_string();
+            self.set_origin(&origin);
+        }
+    }
+
+    pub fn url(&self) -> String {
+        self.current_url.borrow().clone()
+    }
+
+    pub fn cookie_jar(&self) -> Rc<RefCell<nirvana_net::cookie::CookieJar>> {
+        self.cookie_jar.clone()
+    }
+
+    pub fn set_cookie_jar(&mut self, jar: Rc<RefCell<nirvana_net::cookie::CookieJar>>) {
+        self.cookie_jar = jar.clone();
+        if let Some(ref mut handle) = self.dom_handle {
+            handle.cookie_jar = jar;
+        }
     }
 
     pub fn storage_backend(&self) -> Rc<RefCell<StorageBackend>> {

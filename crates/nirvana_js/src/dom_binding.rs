@@ -20,6 +20,10 @@ pub struct DomHandle {
     #[unsafe_ignore_trace]
     pub mutated: Rc<RefCell<bool>>,
     pub events: crate::events::EventRegistry,
+    #[unsafe_ignore_trace]
+    pub cookie_jar: Rc<RefCell<nirvana_net::cookie::CookieJar>>,
+    #[unsafe_ignore_trace]
+    pub current_url: Rc<RefCell<String>>,
 }
 
 impl DomHandle {
@@ -28,6 +32,22 @@ impl DomHandle {
             dom,
             mutated: Rc::new(RefCell::new(false)),
             events: crate::events::EventRegistry::new(),
+            cookie_jar: Rc::new(RefCell::new(nirvana_net::cookie::CookieJar::new())),
+            current_url: Rc::new(RefCell::new("about:blank".to_string())),
+        }
+    }
+
+    pub fn new_with_cookies(
+        dom: SharedDom,
+        cookie_jar: Rc<RefCell<nirvana_net::cookie::CookieJar>>,
+        current_url: Rc<RefCell<String>>,
+    ) -> Self {
+        Self {
+            dom,
+            mutated: Rc::new(RefCell::new(false)),
+            events: crate::events::EventRegistry::new(),
+            cookie_jar,
+            current_url,
         }
     }
 }
@@ -189,9 +209,52 @@ pub fn init_dom(context: &mut Context, handle: DomHandle) -> JsResult<()> {
         h_body_get,
     );
 
+    let h_cookie_get = handle.clone();
+    let get_cookie = NativeFunction::from_copy_closure_with_captures(
+        |_this, _args, handle, _ctx| {
+            let url_str = handle.current_url.borrow().clone();
+            let jar = handle.cookie_jar.borrow();
+            let cookies = jar.get_cookies_for_url_str(&url_str, false);
+            let cookie_str = cookies
+                .iter()
+                .filter(|c| !c.http_only)
+                .map(|c| format!("{}={}", c.name, c.value))
+                .collect::<Vec<_>>()
+                .join("; ");
+            Ok(JsValue::from(js_string!(cookie_str.as_str())))
+        },
+        h_cookie_get,
+    );
+
+    let h_cookie_set = handle.clone();
+    let set_cookie = NativeFunction::from_copy_closure_with_captures(
+        |_this, args, handle, ctx| {
+            let cookie_header = args.get_or_undefined(0).to_string(ctx)?;
+            let cookie_header = cookie_header.to_std_string_escaped();
+            let url_str = handle.current_url.borrow().clone();
+            if let Ok(parsed_url) = nirvana_url::Url::parse(&url_str) {
+                let default_domain = parsed_url.host().unwrap_or("");
+                let default_path = parsed_url.path();
+                if let Some(mut cookie) = nirvana_net::cookie::parse_set_cookie(
+                    &cookie_header,
+                    default_domain,
+                    default_path,
+                ) {
+                    // RFC 6265: JavaScript execution cannot set HttpOnly cookies
+                    cookie.http_only = false;
+                    handle.cookie_jar.borrow_mut().store(cookie, &parsed_url);
+                }
+            }
+            Ok(JsValue::undefined())
+        },
+        h_cookie_set,
+    );
+
     let get_title_fn = get_title.to_js_function(context.realm());
     let set_title_fn = set_title.to_js_function(context.realm());
     let get_body_fn = get_body.to_js_function(context.realm());
+    let get_cookie_fn = get_cookie.to_js_function(context.realm());
+    let set_cookie_fn = set_cookie.to_js_function(context.realm());
 
     let document = ObjectInitializer::new(context)
         .function(get_element_by_id, js_string!("getElementById"), 1)
@@ -208,6 +271,12 @@ pub fn init_dom(context: &mut Context, handle: DomHandle) -> JsResult<()> {
             Some(get_body_fn),
             None,
             Attribute::READONLY,
+        )
+        .accessor(
+            js_string!("cookie"),
+            Some(get_cookie_fn),
+            Some(set_cookie_fn),
+            Attribute::all(),
         )
         .build();
 

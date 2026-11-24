@@ -164,9 +164,9 @@ impl CookieJar {
         }
     }
 
-    /// Stores a parsed cookie in the jar.
+    /// Adds a cookie directly into the jar.
     /// Overwrites existing cookie with the same `(name, domain, path)`.
-    pub fn store(&mut self, cookie: Cookie, _origin: &Url) {
+    pub fn add_cookie(&mut self, cookie: Cookie) {
         if let Some(existing) = self.cookies.iter_mut().find(|c| {
             c.name.eq_ignore_ascii_case(&cookie.name)
                 && c.domain.eq_ignore_ascii_case(&cookie.domain)
@@ -176,6 +176,12 @@ impl CookieJar {
         } else {
             self.cookies.push(cookie);
         }
+    }
+
+    /// Stores a parsed cookie in the jar.
+    /// Overwrites existing cookie with the same `(name, domain, path)`.
+    pub fn store(&mut self, cookie: Cookie, _origin: &Url) {
+        self.add_cookie(cookie);
     }
 
     /// Returns references to all cookies that match the target URL and access context.
@@ -222,6 +228,19 @@ impl CookieJar {
             .join("; ");
 
         Some(cookie_str)
+    }
+
+    /// Returns all cookies currently in the jar.
+    pub fn all_cookies(&self) -> &[Cookie] {
+        &self.cookies
+    }
+
+    /// Returns references to all cookies that match the target URL string and access context.
+    pub fn get_cookies_for_url_str(&self, url_str: &str, is_http: bool) -> Vec<&Cookie> {
+        match Url::parse(url_str) {
+            Ok(url) => self.get_cookies_for_url(&url, is_http),
+            Err(_) => Vec::new(),
+        }
     }
 
     /// Clears all cookies from the jar.
