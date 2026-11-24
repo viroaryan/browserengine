@@ -14,10 +14,10 @@
 # Progress Ledger: Phase 9 - Network Stack & Resource Loader (`nirvana_net`)
 
 ## Task Status
-- [ ] Task 1: WHATWG URL Resolution & String Serialization (`nirvana_url`)
-- [ ] Task 2: `nirvana_net` Core Abstractions, Error, File & Data URI Handlers (`crates/nirvana_net`)
-- [ ] Task 3: HTTP/HTTPS Handler & Resource Loader with In-Memory Cache (`crates/nirvana_net`)
-- [ ] Task 4: Engine Document Navigation & External Stylesheet Discovery (`nirvana_android`)
-- [ ] Task 5: Android Asynchronous Navigation & Auto Link Loading (`NirvanaView.kt`)
-- [ ] Task 6: End-to-End Navigation Pipeline Test & Full Workspace Verification
+- [x] Task 1: WHATWG URL Resolution & String Serialization (`nirvana_url`)
+- [x] Task 2: `nirvana_net` Core Abstractions, Error, File & Data URI Handlers (`crates/nirvana_net`)
+- [x] Task 3: HTTP/HTTPS Handler & Resource Loader with In-Memory Cache (`crates/nirvana_net`)
+- [x] Task 4: Engine Document Navigation & External Stylesheet Discovery (`nirvana_android`)
+- [x] Task 5: Android Asynchronous Navigation & Auto Link Loading (`NirvanaView.kt`)
+- [x] Task 6: End-to-End Navigation Pipeline Test & Full Workspace Verification
 - [ ] Whole-Branch Review & Verification
