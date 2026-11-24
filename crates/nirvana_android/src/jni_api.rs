@@ -1,7 +1,7 @@
 //! JNI C-ABI bindings for Android Java / Kotlin integration.
 
 use crate::engine::NirvanaEngine;
-use jni::objects::{JClass, JString};
+use jni::objects::{JByteBuffer, JClass, JString};
 use jni::sys::{jbyteArray, jint, jlong};
 use jni::JNIEnv;
 use std::panic::catch_unwind;
@@ -163,4 +163,39 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetPi
         }
     }));
     result.unwrap_or(std::ptr::null_mut())
+}
+
+/// Copies the 32-bit RGBA pixel buffer directly into a direct `java.nio.ByteBuffer`.
+/// Avoids Java heap allocations. Returns 0 on success, negative error code on failure.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeCopyPixelsToBuffer(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    byte_buffer: JByteBuffer,
+) -> jint {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return -1;
+        };
+        let target_ptr = match env.get_direct_buffer_address(&byte_buffer) {
+            Ok(ptr) if !ptr.is_null() => ptr,
+            _ => return -2,
+        };
+        let capacity = match env.get_direct_buffer_capacity(&byte_buffer) {
+            Ok(cap) => cap,
+            Err(_) => return -3,
+        };
+
+        let pixels = engine.pixels();
+        if capacity < pixels.len() {
+            return -4;
+        }
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(pixels.as_ptr(), target_ptr, pixels.len());
+        }
+        0
+    }));
+    result.unwrap_or(-5)
 }

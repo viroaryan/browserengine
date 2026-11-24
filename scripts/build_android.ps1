@@ -18,6 +18,16 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = Split-Path -Parent $scriptDir
 $jniLibsDir = Join-Path $rootDir "android\app\src\main\jniLibs"
 
+# Verify Android NDK environment
+$ndkPath = $env:ANDROID_NDK_HOME
+if (-not $ndkPath) { $ndkPath = $env:NDK_HOME }
+if (-not $ndkPath) {
+    Write-Warning "Neither ANDROID_NDK_HOME nor NDK_HOME environment variable is set."
+    Write-Warning "cargo-ndk requires the Android NDK path to compile for Android targets."
+} else {
+    Write-Host "==> Using Android NDK: $ndkPath" -ForegroundColor Green
+}
+
 Write-Host "==> Checking cargo-ndk installation..." -ForegroundColor Cyan
 if (-not (Get-Command "cargo-ndk" -ErrorAction SilentlyContinue)) {
     Write-Host "Installing cargo-ndk..." -ForegroundColor Yellow

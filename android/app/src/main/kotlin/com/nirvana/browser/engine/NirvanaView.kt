@@ -11,7 +11,8 @@ import java.nio.ByteBuffer
 
 /**
  * Custom Android SurfaceView hosting the Nirvana Browser Engine.
- * Automatically synchronizes surface size changes and renders directly onto the hardware canvas.
+ * Automatically synchronizes surface size changes and renders directly onto the surface canvas
+ * using zero-allocation direct byte buffers.
  */
 class NirvanaView @JvmOverloads constructor(
     context: Context,
@@ -21,7 +22,7 @@ class NirvanaView @JvmOverloads constructor(
 
     private var engine: NirvanaEngine? = null
     private var pixelBitmap: Bitmap? = null
-    private var pixelBuffer: ByteBuffer? = null
+    private var directPixelBuffer: ByteBuffer? = null
     private var currentHtml: String = "<html><body><h1>Nirvana Browser</h1></body></html>"
     private var currentCss: String = ""
 
@@ -43,27 +44,26 @@ class NirvanaView @JvmOverloads constructor(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        val w = width.coerceAtLeast(1)
-        val h = height.coerceAtLeast(1)
-        val eng = NirvanaEngine(w, h)
-        engine = eng
-
-        eng.loadHtml(currentHtml, currentCss)
-        eng.render()
-        allocateBitmap(w, h)
-        drawFrame()
+        // Surface is ready; actual dimensions are guaranteed to arrive in surfaceChanged immediately.
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         val w = width.coerceAtLeast(1)
         val h = height.coerceAtLeast(1)
 
-        engine?.let { eng ->
-            eng.resize(w, h)
-            eng.render()
-            allocateBitmap(w, h)
-            drawFrame()
+        val eng = engine ?: NirvanaEngine(w, h).also {
+            it.loadHtml(currentHtml, currentCss)
+            engine = it
         }
+
+        if (eng.width != w || eng.height != h) {
+            eng.resize(w, h)
+        } else {
+            eng.render()
+        }
+
+        allocateBuffers(w, h)
+        drawFrame()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -71,27 +71,27 @@ class NirvanaView @JvmOverloads constructor(
         engine = null
         pixelBitmap?.recycle()
         pixelBitmap = null
-        pixelBuffer = null
+        directPixelBuffer = null
     }
 
-    private fun allocateBitmap(width: Int, height: Int) {
+    private fun allocateBuffers(width: Int, height: Int) {
         if (pixelBitmap?.width != width || pixelBitmap?.height != height) {
             pixelBitmap?.recycle()
             pixelBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            pixelBuffer = ByteBuffer.allocate(width * height * 4)
+            // Allocate off-heap direct byte buffer to eliminate GC allocations during frame copies
+            directPixelBuffer = ByteBuffer.allocateDirect(width * height * 4)
         }
     }
 
     private fun drawFrame() {
         val eng = engine ?: return
         val bmp = pixelBitmap ?: return
-        val buf = pixelBuffer ?: return
-
-        val pixels = eng.getPixels()
-        if (pixels.isEmpty()) return
+        val buf = directPixelBuffer ?: return
 
         buf.rewind()
-        buf.put(pixels)
+        val success = eng.copyPixelsToBuffer(buf)
+        if (!success) return
+
         buf.rewind()
         bmp.copyPixelsFromBuffer(buf)
 

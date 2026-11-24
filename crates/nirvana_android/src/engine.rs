@@ -70,10 +70,11 @@ impl NirvanaEngine {
 
         self.width = width;
         self.height = height;
-        self.canvas = Canvas::new(width, height);
 
         if self.dom.is_some() {
             self.render();
+        } else {
+            self.canvas = Canvas::new(width, height);
         }
     }
 

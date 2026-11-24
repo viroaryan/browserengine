@@ -7,6 +7,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 JNI_LIBS_DIR="${ROOT_DIR}/android/app/src/main/jniLibs"
 
+# Verify Android NDK environment
+if [ -z "${ANDROID_NDK_HOME:-}" ] && [ -z "${NDK_HOME:-}" ]; then
+    echo "WARNING: Neither ANDROID_NDK_HOME nor NDK_HOME environment variable is set."
+    echo "cargo-ndk requires the Android NDK path to compile for Android targets."
+fi
+
 echo "==> Checking cargo-ndk..."
 if ! command -v cargo-ndk &> /dev/null; then
     echo "cargo-ndk not found, installing..."

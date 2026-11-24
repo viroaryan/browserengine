@@ -67,6 +67,17 @@ class NirvanaEngine(
         return nativeGetPixels(nativePtr)
     }
 
+    /**
+     * Copies the rasterized pixels directly into a pre-allocated direct [java.nio.ByteBuffer].
+     * Zero-allocation transfer mechanism eliminating GC churn.
+     * Returns true on success, false if the buffer capacity is insufficient or native copy fails.
+     */
+    fun copyPixelsToBuffer(directBuffer: java.nio.ByteBuffer): Boolean {
+        checkOpen()
+        require(directBuffer.isDirect) { "Buffer must be allocated via ByteBuffer.allocateDirect()" }
+        return nativeCopyPixelsToBuffer(nativePtr, directBuffer) == 0
+    }
+
     override fun close() {
         if (isClosed.compareAndSet(false, true)) {
             val ptr = nativePtr
@@ -91,6 +102,7 @@ class NirvanaEngine(
     private external fun nativeGetWidth(enginePtr: Long): Int
     private external fun nativeGetHeight(enginePtr: Long): Int
     private external fun nativeGetPixels(enginePtr: Long): ByteArray
+    private external fun nativeCopyPixelsToBuffer(enginePtr: Long, buffer: java.nio.ByteBuffer): Int
 
     companion object {
         init {
