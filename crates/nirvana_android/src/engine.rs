@@ -1,6 +1,7 @@
 //! Core browser engine state machine for Android embedding.
 
-use nirvana_core::geometry::Size;
+use crate::hit_test::{resolve_hit_target, HitTestResult};
+use nirvana_core::geometry::{Point, Size};
 use nirvana_css::ast::StyleSheet;
 use nirvana_css::parser::parse_css;
 use nirvana_dom::DomTree;
@@ -173,6 +174,16 @@ impl NirvanaEngine {
         let max_x = (doc_w - self.width as f32).max(0.0);
         let max_y = (doc_h - self.height as f32).max(0.0);
         (max_x, max_y)
+    }
+
+    /// Performs hit-testing at the given screen coordinates (screen_x, screen_y).
+    /// Translates screen coordinates to document coordinates using current scroll offset.
+    pub fn hit_test(&self, screen_x: f32, screen_y: f32) -> Option<HitTestResult> {
+        let (root, dom) = (self.layout_root.as_ref()?, self.dom.as_ref()?);
+        let doc_x = screen_x + self.scroll_x;
+        let doc_y = screen_y + self.scroll_y;
+        let hit_node_id = root.hit_test(Point::new(doc_x, doc_y))?;
+        Some(resolve_hit_target(dom, hit_node_id))
     }
 }
 

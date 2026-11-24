@@ -2,7 +2,7 @@
 
 use crate::engine::NirvanaEngine;
 use jni::objects::{JByteBuffer, JClass, JString};
-use jni::sys::{jbyteArray, jint, jlong};
+use jni::sys::{jbyteArray, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
 use std::panic::catch_unwind;
 
@@ -198,4 +198,141 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeCopyP
         0
     }));
     result.unwrap_or(-5)
+}
+
+/// Scrolls the engine by the given delta (dx, dy).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeScrollBy(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    dx: jfloat,
+    dy: jfloat,
+) {
+    let _ = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return;
+        };
+        engine.scroll_by(dx, dy);
+    });
+}
+
+/// Sets the absolute scroll offset of the engine to (x, y).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeScrollTo(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    x: jfloat,
+    y: jfloat,
+) {
+    let _ = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return;
+        };
+        engine.scroll_to(x, y);
+    });
+}
+
+/// Returns the current horizontal scroll offset in pixels.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetScrollX(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jfloat {
+    let result = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0.0;
+        };
+        engine.scroll_offset().0
+    });
+    result.unwrap_or(0.0)
+}
+
+/// Returns the current vertical scroll offset in pixels.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetScrollY(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jfloat {
+    let result = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0.0;
+        };
+        engine.scroll_offset().1
+    });
+    result.unwrap_or(0.0)
+}
+
+/// Returns the maximum vertical scroll offset in pixels.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetMaxScrollY(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jfloat {
+    let result = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0.0;
+        };
+        engine.max_scroll().1
+    });
+    result.unwrap_or(0.0)
+}
+
+/// Hit-tests a point on screen. Returns a JSON string describing the target,
+/// or an empty string if no target was hit.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeHitTest(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    x: jfloat,
+    y: jfloat,
+) -> jstring {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+
+        let json = match engine.hit_test(x, y) {
+            Some(hit) => {
+                let tag = escape_json(&hit.tag);
+                let href = hit.href.as_deref().map(escape_json);
+                let text = hit.text.as_deref().map(escape_json);
+                format!(
+                    r#"{{"tag":"{}","href":{},"text":{}}}"#,
+                    tag,
+                    href.map(|h| format!("\"{}\"", h))
+                        .unwrap_or_else(|| "null".to_string()),
+                    text.map(|t| format!("\"{}\"", t))
+                        .unwrap_or_else(|| "null".to_string()),
+                )
+            }
+            None => String::new(),
+        };
+
+        match env.new_string(json) {
+            Ok(js) => js.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
+}
+
+fn escape_json(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
+    }
+    out
 }
