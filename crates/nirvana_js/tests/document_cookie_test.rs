@@ -25,6 +25,7 @@ fn test_document_cookie_read_filters_http_only() {
             http_only: true,
             same_site: nirvana_net::cookie::SameSite::Lax,
             max_age: None,
+            host_only: false,
         });
         jar_mut.add_cookie(Cookie {
             name: "theme".to_string(),
@@ -35,6 +36,7 @@ fn test_document_cookie_read_filters_http_only() {
             http_only: false,
             same_site: nirvana_net::cookie::SameSite::Lax,
             max_age: None,
+            host_only: false,
         });
     }
 

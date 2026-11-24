@@ -138,6 +138,7 @@ fn test_e2e_httponly_isolation_under_script_execution() {
             http_only: true,
             same_site: nirvana_net::cookie::SameSite::Strict,
             max_age: None,
+            host_only: false,
         });
         jar_mut.add_cookie(Cookie {
             name: "display_theme".to_string(),
@@ -148,6 +149,7 @@ fn test_e2e_httponly_isolation_under_script_execution() {
             http_only: false,
             same_site: nirvana_net::cookie::SameSite::Lax,
             max_age: None,
+            host_only: false,
         });
     }
 
@@ -159,11 +161,13 @@ fn test_e2e_httponly_isolation_under_script_execution() {
     // Malicious script attempts to overwrite HttpOnly cookie from client
     let _ = engine.evaluate_js("document.cookie = 'session_token=hacked; HttpOnly; path=/';");
 
-    // Underlying CookieJar check: the script write creates a non-http_only cookie or leaves existing
+    // Underlying CookieJar check: RFC 6265 §5.3 Step 11 requires that non-HTTP APIs
+    // cannot overwrite an existing HttpOnly cookie!
     let jar = engine.cookie_jar();
     let jar_ref = jar.borrow();
     let cookies = jar_ref.get_cookies_for_url_str("https://vault.example.com/account", true);
     let session_cookie = cookies.iter().find(|c| c.name == "session_token").expect("cookie exists");
-    // Crucial security invariant: client-side scripts can never elevate a cookie to HttpOnly
-    assert!(!session_cookie.http_only);
+    // Crucial security invariant: existing HttpOnly cookie is preserved, not overwritten or degraded
+    assert_eq!(session_cookie.value, "vault_secret_999");
+    assert!(session_cookie.http_only);
 }

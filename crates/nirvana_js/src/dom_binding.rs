@@ -242,7 +242,10 @@ pub fn init_dom(context: &mut Context, handle: DomHandle) -> JsResult<()> {
                 ) {
                     // RFC 6265: JavaScript execution cannot set HttpOnly cookies
                     cookie.http_only = false;
-                    handle.cookie_jar.borrow_mut().store(cookie, &parsed_url);
+                    handle
+                        .cookie_jar
+                        .borrow_mut()
+                        .store_with_context(cookie, &parsed_url, false);
                 }
             }
             Ok(JsValue::undefined())

@@ -24,6 +24,7 @@ fn test_engine_cookie_jar_lifecycle_and_clear() {
             http_only: false,
             same_site: nirvana_net::cookie::SameSite::Lax,
             max_age: None,
+            host_only: false,
         });
         jar_mut.add_cookie(Cookie {
             name: "admin_token".to_string(),
@@ -34,6 +35,7 @@ fn test_engine_cookie_jar_lifecycle_and_clear() {
             http_only: true,
             same_site: nirvana_net::cookie::SameSite::Lax,
             max_age: None,
+            host_only: false,
         });
     }
 
@@ -114,4 +116,25 @@ fn test_mixed_content_detection_helper() {
 
     assert!(is_mixed_content(&doc_origin, &http_script));
     assert!(!is_mixed_content(&doc_origin, &https_script));
+}
+
+#[test]
+fn test_csp_enforcement_in_engine() {
+    use nirvana_net::security::{CspDirective, CspPolicy};
+
+    let https_doc = Url::parse("https://example.com/index.html").unwrap();
+    let doc_origin = Origin::from_url(&https_doc);
+
+    let csp_str = "default-src 'self'; img-src https://cdn.example.com; script-src 'self'";
+    let policy = CspPolicy::parse(csp_str).expect("parsed policy");
+
+    let allowed_img = Url::parse("https://cdn.example.com/logo.png").unwrap();
+    let blocked_img = Url::parse("https://untrusted.com/ad.png").unwrap();
+    let allowed_script = Url::parse("https://example.com/bundle.js").unwrap();
+    let blocked_script = Url::parse("https://evil.com/xss.js").unwrap();
+
+    assert!(policy.is_allowed(CspDirective::ImgSrc, &allowed_img, &doc_origin));
+    assert!(!policy.is_allowed(CspDirective::ImgSrc, &blocked_img, &doc_origin));
+    assert!(policy.is_allowed(CspDirective::ScriptSrc, &allowed_script, &doc_origin));
+    assert!(!policy.is_allowed(CspDirective::ScriptSrc, &blocked_script, &doc_origin));
 }

@@ -45,6 +45,7 @@ pub struct NirvanaEngine {
     js_runtime: Option<nirvana_js::JsRuntime>,
     cookie_jar: std::rc::Rc<std::cell::RefCell<nirvana_net::cookie::CookieJar>>,
     storage_backend: std::rc::Rc<std::cell::RefCell<nirvana_js::storage::StorageBackend>>,
+    csp_policy: Option<nirvana_net::security::CspPolicy>,
 }
 
 impl NirvanaEngine {
@@ -72,6 +73,7 @@ impl NirvanaEngine {
             js_runtime: None,
             cookie_jar: std::rc::Rc::new(std::cell::RefCell::new(nirvana_net::cookie::CookieJar::new())),
             storage_backend: std::rc::Rc::new(std::cell::RefCell::new(nirvana_js::storage::StorageBackend::new())),
+            csp_policy: None,
         }
     }
 
@@ -115,6 +117,7 @@ impl NirvanaEngine {
         self.scroll_y = 0.0;
         self.display_list = None;
         self.current_url = None;
+        self.csp_policy = None;
         self.focused_element = None;
         self.input_buffers.clear();
 
@@ -181,6 +184,12 @@ impl NirvanaEngine {
             }
         }
 
+        // 3. Parse Content-Security-Policy header if present
+        self.csp_policy = resp
+            .headers
+            .get("content-security-policy")
+            .and_then(|h| nirvana_net::security::CspPolicy::parse(h));
+
         let html = resp.text().map_err(|e| format!("Invalid UTF-8 document: {e}"))?;
         let dom = parse_html(html);
 
@@ -203,7 +212,21 @@ impl NirvanaEngine {
                 continue;
             }
 
-            let css_resp = match self.loader.fetch(&css_url) {
+            // CSP check
+            if let Some(ref csp) = self.csp_policy
+                && !csp.is_allowed(nirvana_net::security::CspDirective::StyleSrc, &css_url, &doc_origin)
+            {
+                eprintln!("Warning: blocked stylesheet by CSP at {css_url}");
+                continue;
+            }
+
+            let css_cookie = self.cookie_jar.borrow().get_cookie_header_value(&css_url, true);
+            let mut css_headers = Vec::new();
+            if let Some(ref val) = css_cookie {
+                css_headers.push(("Cookie", val.as_str()));
+            }
+
+            let css_resp = match self.loader.fetch_with_headers(&css_url, &css_headers) {
                 Ok(resp) => resp,
                 Err(e) => {
                     eprintln!("Warning: failed to fetch stylesheet at {css_url}: {e}");
@@ -378,6 +401,21 @@ impl NirvanaEngine {
                 }
             }
 
+            // CSP check
+            if let Some(ref csp) = self.csp_policy {
+                let doc_origin = base_url
+                    .map(nirvana_net::security::Origin::from_url)
+                    .unwrap_or_else(|| nirvana_net::security::Origin::from_url(&img_url));
+                if !csp.is_allowed(
+                    nirvana_net::security::CspDirective::ImgSrc,
+                    &img_url,
+                    &doc_origin,
+                ) {
+                    eprintln!("Warning: blocked image by CSP at {img_url}");
+                    continue;
+                }
+            }
+
             // Check if canonical URL is already cached
             let canonical = img_url.as_str();
             if let Some(existing) = self.images.get(&canonical) {
@@ -385,7 +423,13 @@ impl NirvanaEngine {
                 continue;
             }
 
-            let resp = match self.loader.fetch(&img_url) {
+            let img_cookie = self.cookie_jar.borrow().get_cookie_header_value(&img_url, true);
+            let mut img_headers = Vec::new();
+            if let Some(ref val) = img_cookie {
+                img_headers.push(("Cookie", val.as_str()));
+            }
+
+            let resp = match self.loader.fetch_with_headers(&img_url, &img_headers) {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Warning: failed to fetch image at {img_url}: {e}");
@@ -769,7 +813,29 @@ impl NirvanaEngine {
                         }
                     }
 
-                    let resp = match self.loader.fetch(&script_url) {
+                    // CSP check
+                    if let Some(ref csp) = self.csp_policy {
+                        let doc_origin = base_url
+                            .as_ref()
+                            .map(nirvana_net::security::Origin::from_url)
+                            .unwrap_or_else(|| nirvana_net::security::Origin::from_url(&script_url));
+                        if !csp.is_allowed(
+                            nirvana_net::security::CspDirective::ScriptSrc,
+                            &script_url,
+                            &doc_origin,
+                        ) {
+                            eprintln!("Warning: blocked script by CSP at {script_url}");
+                            continue;
+                        }
+                    }
+
+                    let script_cookie = self.cookie_jar.borrow().get_cookie_header_value(&script_url, true);
+                    let mut script_headers = Vec::new();
+                    if let Some(ref val) = script_cookie {
+                        script_headers.push(("Cookie", val.as_str()));
+                    }
+
+                    let resp = match self.loader.fetch_with_headers(&script_url, &script_headers) {
                         Ok(r) => r,
                         Err(e) => {
                             eprintln!("Warning: failed to fetch script at {script_url}: {e}");

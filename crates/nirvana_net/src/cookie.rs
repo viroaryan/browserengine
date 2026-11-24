@@ -21,20 +21,26 @@ pub struct Cookie {
     pub secure: bool,
     pub http_only: bool,
     pub same_site: SameSite,
-    pub max_age: Option<u64>,
+    pub max_age: Option<i64>,
+    pub host_only: bool,
 }
 
 impl Cookie {
     /// Determines whether this cookie matches the specified domain.
-    /// Following RFC 6265 §5.1.3:
-    /// - Identical string comparison, OR
-    /// - `domain` is a suffix of `target_domain` and the preceding character is '.'
+    /// Following RFC 6265 §5.1.3 & §5.3:
+    /// - For host-only cookies (no explicit Domain attribute): exact host match only.
+    /// - For domain cookies: identical string comparison, OR
+    ///   `domain` is a suffix of `target_domain` preceded by '.'
     pub fn domain_matches(&self, target_domain: &str) -> bool {
         let cookie_domain = self.domain.to_ascii_lowercase();
         let target = target_domain.to_ascii_lowercase();
 
         if cookie_domain == target {
             return true;
+        }
+
+        if self.host_only {
+            return false;
         }
 
         if target.ends_with(&cookie_domain) {
@@ -83,6 +89,7 @@ pub fn parse_set_cookie(header: &str, default_domain: &str, default_path: &str) 
     }
 
     let mut domain = default_domain.to_string();
+    let mut host_only = true;
     let mut path = if default_path.is_empty() {
         "/".to_string()
     } else {
@@ -107,6 +114,7 @@ pub fn parse_set_cookie(header: &str, default_domain: &str, default_path: &str) 
                     let d = val.trim_start_matches('.');
                     if !d.is_empty() {
                         domain = d.to_ascii_lowercase();
+                        host_only = false;
                     }
                 }
                 "path" => {
@@ -115,7 +123,7 @@ pub fn parse_set_cookie(header: &str, default_domain: &str, default_path: &str) 
                     }
                 }
                 "max-age" => {
-                    if let Ok(secs) = val.parse::<u64>() {
+                    if let Ok(secs) = val.parse::<i64>() {
                         max_age = Some(secs);
                     }
                 }
@@ -147,6 +155,7 @@ pub fn parse_set_cookie(header: &str, default_domain: &str, default_path: &str) 
         http_only,
         same_site,
         max_age,
+        host_only,
     })
 }
 
@@ -166,7 +175,19 @@ impl CookieJar {
 
     /// Adds a cookie directly into the jar.
     /// Overwrites existing cookie with the same `(name, domain, path)`.
+    /// Evicts matching cookie if `max_age <= 0`.
     pub fn add_cookie(&mut self, cookie: Cookie) {
+        if let Some(max_age) = cookie.max_age
+            && max_age <= 0
+        {
+            self.cookies.retain(|c| {
+                !(c.name.eq_ignore_ascii_case(&cookie.name)
+                    && c.domain.eq_ignore_ascii_case(&cookie.domain)
+                    && c.path == cookie.path)
+            });
+            return;
+        }
+
         if let Some(existing) = self.cookies.iter_mut().find(|c| {
             c.name.eq_ignore_ascii_case(&cookie.name)
                 && c.domain.eq_ignore_ascii_case(&cookie.domain)
@@ -178,10 +199,62 @@ impl CookieJar {
         }
     }
 
-    /// Stores a parsed cookie in the jar.
-    /// Overwrites existing cookie with the same `(name, domain, path)`.
-    pub fn store(&mut self, cookie: Cookie, _origin: &Url) {
-        self.add_cookie(cookie);
+    /// Stores a parsed cookie in the jar under default HTTP context.
+    pub fn store(&mut self, cookie: Cookie, origin: &Url) {
+        self.store_with_context(cookie, origin, true);
+    }
+
+    /// Stores a parsed cookie in the jar with access context validation.
+    /// Follows RFC 6265 §5.3:
+    /// - Step 5: Ignores cookies whose domain is not a suffix of the request host.
+    /// - Step 11: Non-HTTP APIs (e.g. JavaScript document.cookie) cannot overwrite HttpOnly cookies.
+    /// - Step 3: Evicts cookie if Max-Age <= 0.
+    pub fn store_with_context(&mut self, cookie: Cookie, origin: &Url, is_http: bool) {
+        let Some(origin_host) = origin.host() else {
+            return;
+        };
+
+        let cookie_domain = cookie.domain.to_ascii_lowercase();
+        let origin_host_lower = origin_host.to_ascii_lowercase();
+
+        let origin_matches = if origin_host_lower == cookie_domain {
+            true
+        } else if origin_host_lower.ends_with(&cookie_domain) {
+            let prefix_len = origin_host_lower.len() - cookie_domain.len();
+            prefix_len > 0 && origin_host_lower.as_bytes()[prefix_len - 1] == b'.'
+        } else {
+            false
+        };
+
+        if !origin_matches {
+            return;
+        }
+
+        // RFC 6265 §5.2.2: Evict matching cookie on Max-Age <= 0
+        if let Some(max_age) = cookie.max_age
+            && max_age <= 0
+        {
+            self.cookies.retain(|c| {
+                !(c.name.eq_ignore_ascii_case(&cookie.name)
+                    && c.domain.eq_ignore_ascii_case(&cookie.domain)
+                    && c.path == cookie.path)
+            });
+            return;
+        }
+
+        if let Some(existing) = self.cookies.iter_mut().find(|c| {
+            c.name.eq_ignore_ascii_case(&cookie.name)
+                && c.domain.eq_ignore_ascii_case(&cookie.domain)
+                && c.path == cookie.path
+        }) {
+            // RFC 6265 §5.3 Step 11: Non-HTTP APIs cannot overwrite HttpOnly cookies
+            if !is_http && existing.http_only {
+                return;
+            }
+            *existing = cookie;
+        } else {
+            self.cookies.push(cookie);
+        }
     }
 
     /// Returns references to all cookies that match the target URL and access context.
