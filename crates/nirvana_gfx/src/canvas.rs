@@ -164,8 +164,7 @@ impl Canvas {
             return;
         }
 
-        let metrics = font.measure_text(text, font_size_px);
-        let baseline_y = origin_y + metrics.ascent;
+        let baseline_y = origin_y + font.ascent(font_size_px);
         let mut cursor_x = origin_x;
 
         for c in text.chars() {
@@ -180,15 +179,21 @@ impl Canvas {
 
                 for gy in 0..glyph.height {
                     let cy = gy_base + gy as i64;
-                    if cy < 0 || cy >= self.height as i64 {
+                    if cy < 0 {
                         continue;
+                    }
+                    if cy >= self.height as i64 {
+                        break; // All subsequent rows are out of bounds
                     }
 
                     let row_offset = gy * glyph.width;
                     for gx in 0..glyph.width {
                         let cx = gx_base + gx as i64;
-                        if cx < 0 || cx >= self.width as i64 {
+                        if cx < 0 {
                             continue;
+                        }
+                        if cx >= self.width as i64 {
+                            break; // All subsequent columns in this row are out of bounds
                         }
 
                         let coverage = glyph.alpha_mask[row_offset + gx];

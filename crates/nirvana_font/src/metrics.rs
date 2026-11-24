@@ -56,4 +56,12 @@ impl Font {
     pub fn line_height(&self, font_size_px: f32) -> f32 {
         self.measure_text("", font_size_px).line_height
     }
+
+    /// Returns the font ascent in pixels for the specified font size in O(1).
+    pub fn ascent(&self, font_size_px: f32) -> f32 {
+        self.inner()
+            .horizontal_line_metrics(font_size_px)
+            .map(|lm| lm.ascent)
+            .unwrap_or(font_size_px * 0.8)
+    }
 }
