@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod block;
 pub mod box_type;
 pub mod dimensions;
 pub mod tree_builder;
