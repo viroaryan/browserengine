@@ -111,6 +111,14 @@ impl DomTree {
         }
     }
 
+    pub fn tag_name(&self, id: NodeId) -> Option<&str> {
+        let node = self.arena.get(id)?;
+        match &node.data {
+            NodeData::Element(data) => Some(&data.tag_name),
+            _ => None,
+        }
+    }
+
     /// Appends `child` as the last child of `parent`.
     /// Performs cycle prevention checks and updates doubly-linked sibling pointers.
     pub fn append_child(&mut self, parent: NodeId, child: NodeId) -> Result<(), DomError> {
