@@ -12,6 +12,7 @@ members = [
     "crates/nirvana_font",
     "crates/nirvana_net",
     "crates/nirvana_js",
+    "crates/nirvana_adblock",
 ]
 resolver = "2"
 
