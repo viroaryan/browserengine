@@ -1,0 +1,20 @@
+[package]
+name = "nirvana_gfx"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nirvana_core = { path = "../nirvana_core" }
+nirvana_dom = { path = "../nirvana_dom" }
+nirvana_style = { path = "../nirvana_style" }
+nirvana_layout = { path = "../nirvana_layout" }
+tiny-skia = "0.12.0"
+
+[dev-dependencies]
+nirvana_html = { path = "../nirvana_html" }
+nirvana_css = { path = "../nirvana_css" }
