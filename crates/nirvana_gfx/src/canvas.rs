@@ -215,6 +215,45 @@ impl Canvas {
         }
     }
 
+    /// Draws a decoded image scaled to fill the target destination rectangle.
+    pub fn draw_image(&mut self, rect: Rect, image: &crate::image::DecodedImage) {
+        if image.width == 0 || image.height == 0 || rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+
+        let x0 = (rect.x().floor() as i64).max(0).min(self.width as i64) as u32;
+        let y0 = (rect.y().floor() as i64).max(0).min(self.height as i64) as u32;
+        let x1 = ((rect.x() + rect.width()).ceil() as i64)
+            .max(0)
+            .min(self.width as i64) as u32;
+        let y1 = ((rect.y() + rect.height()).ceil() as i64)
+            .max(0)
+            .min(self.height as i64) as u32;
+
+        let inv_w = 1.0 / rect.width();
+        let inv_h = 1.0 / rect.height();
+
+        for cy in y0..y1 {
+            let v = ((cy as f32 - rect.y()) * inv_h).clamp(0.0, 1.0);
+            let sy = ((v * (image.height as f32)).floor() as u32).min(image.height - 1);
+            let row_offset = (sy as usize) * (image.width as usize) * 4;
+
+            for cx in x0..x1 {
+                let u = ((cx as f32 - rect.x()) * inv_w).clamp(0.0, 1.0);
+                let sx = ((u * (image.width as f32)).floor() as u32).min(image.width - 1);
+                let idx = row_offset + (sx as usize) * 4;
+
+                let color = Rgba::new(
+                    image.rgba_pixels[idx],
+                    image.rgba_pixels[idx + 1],
+                    image.rgba_pixels[idx + 2],
+                    image.rgba_pixels[idx + 3],
+                );
+                self.put_pixel(cx, cy, color);
+            }
+        }
+    }
+
     /// Executes all commands in the display list onto this canvas with a translation offset.
     pub fn render_display_list_with_offset(
         &mut self,
@@ -256,6 +295,15 @@ impl Canvas {
                         16.0,
                         *color,
                     );
+                }
+                DisplayCommand::DrawImage { rect, image } => {
+                    let shifted_rect = Rect::new(
+                        rect.x() + offset_x,
+                        rect.y() + offset_y,
+                        rect.width(),
+                        rect.height(),
+                    );
+                    self.draw_image(shifted_rect, image);
                 }
             }
         }

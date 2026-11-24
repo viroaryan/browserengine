@@ -24,6 +24,11 @@ pub enum DisplayCommand {
         origin: Point,
         color: Rgba,
     },
+    /// Draws a decoded image scaled to fit inside the specified rectangle.
+    DrawImage {
+        rect: Rect,
+        image: std::sync::Arc<crate::image::DecodedImage>,
+    },
 }
 
 /// An ordered sequence of drawing commands representing the visual appearance of a page.

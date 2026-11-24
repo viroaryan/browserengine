@@ -1,6 +1,7 @@
 //! Constructs a DisplayList from a positioned LayoutBox tree according to CSS 2.1 painting order.
 
 use crate::display_list::{DisplayCommand, DisplayList};
+use crate::image::ImageMap;
 use nirvana_dom::node::NodeData;
 use nirvana_dom::{DomTree, NodeType};
 use nirvana_layout::box_type::{BoxType, LayoutBox};
@@ -12,8 +13,18 @@ pub fn build_display_list(
     style_tree: &StyleTree,
     dom: &DomTree,
 ) -> DisplayList {
+    build_display_list_with_images(layout_root, style_tree, dom, &ImageMap::new())
+}
+
+/// Builds a `DisplayList` including decoded image assets from the provided `ImageMap`.
+pub fn build_display_list_with_images(
+    layout_root: &LayoutBox,
+    style_tree: &StyleTree,
+    dom: &DomTree,
+    images: &ImageMap,
+) -> DisplayList {
     let mut list = DisplayList::new();
-    render_layout_box(layout_root, style_tree, dom, &mut list);
+    render_layout_box(layout_root, style_tree, dom, images, &mut list);
     list
 }
 
@@ -21,6 +32,7 @@ fn render_layout_box(
     layout_box: &LayoutBox,
     style_tree: &StyleTree,
     dom: &DomTree,
+    images: &ImageMap,
     list: &mut DisplayList,
 ) {
     let style = layout_box
@@ -49,7 +61,38 @@ fn render_layout_box(
         }
     }
 
-    // 3. Paint text content if this is an inline text node
+    // 3. Paint image if this is an <img> element with decoded image asset
+    if let Some(id) = layout_box.node_id()
+        && dom.node_type(id) == Some(NodeType::Element)
+        && dom.tag_name(id).is_some_and(|t| t.eq_ignore_ascii_case("img"))
+    {
+        if let Some(src) = dom.get_attribute(id, "src") {
+            if let Some(img) = images.get(src) {
+                list.push(DisplayCommand::DrawImage {
+                    rect: layout_box.dimensions.content,
+                    image: img.clone(),
+                });
+            } else {
+                // Broken image placeholder border
+                list.push(DisplayCommand::Border {
+                    rect: layout_box.dimensions.content,
+                    widths: nirvana_layout::dimensions::EdgeSizes::new(1.0, 1.0, 1.0, 1.0),
+                    color: nirvana_core::color::Rgba::new(200, 200, 200, 255),
+                });
+                if let Some(alt) = dom.get_attribute(id, "alt") {
+                    if !alt.is_empty() {
+                        list.push(DisplayCommand::Text {
+                            text: alt.to_string(),
+                            origin: layout_box.dimensions.content.origin,
+                            color: nirvana_core::color::Rgba::new(100, 100, 100, 255),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Paint text content if this is an inline text node
     if let BoxType::InlineNode(id) = layout_box.box_type
         && dom.node_type(id) == Some(NodeType::Text)
         && let Some(node) = dom.get_node(id)
@@ -76,8 +119,8 @@ fn render_layout_box(
         }
     }
 
-    // 4. Paint children recursively in tree order
+    // 5. Paint children recursively in tree order
     for child in &layout_box.children {
-        render_layout_box(child, style_tree, dom, list);
+        render_layout_box(child, style_tree, dom, images, list);
     }
 }
