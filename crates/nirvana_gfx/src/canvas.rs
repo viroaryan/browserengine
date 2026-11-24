@@ -159,4 +159,45 @@ impl Canvas {
             }
         }
     }
+
+    /// Encodes canvas RGBA pixels into PNG format bytes.
+    pub fn encode_png(&self) -> Result<Vec<u8>, std::io::Error> {
+        if self.width == 0 || self.height == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Canvas dimensions must be non-zero",
+            ));
+        }
+
+        // Convert straight RGBA to premultiplied RGBA for tiny-skia PixmapRef
+        let mut premul = Vec::with_capacity(self.pixels.len());
+        for chunk in self.pixels.as_chunks::<4>().0 {
+            let a = chunk[3] as f32 / 255.0;
+            let r = (chunk[0] as f32 * a).round() as u8;
+            let g = (chunk[1] as f32 * a).round() as u8;
+            let b = (chunk[2] as f32 * a).round() as u8;
+            premul.push(r);
+            premul.push(g);
+            premul.push(b);
+            premul.push(chunk[3]);
+        }
+
+        let pixmap = tiny_skia::PixmapRef::from_bytes(&premul, self.width, self.height)
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Failed to create PixmapRef from canvas bytes",
+                )
+            })?;
+
+        pixmap
+            .encode_png()
+            .map_err(|e| std::io::Error::other(e.to_string()))
+    }
+
+    /// Writes canvas pixels as a PNG file to the specified path.
+    pub fn save_png<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), std::io::Error> {
+        let png_bytes = self.encode_png()?;
+        std::fs::write(path, png_bytes)
+    }
 }
