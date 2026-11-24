@@ -4,6 +4,7 @@ members = [
     "crates/nirvana_url",
     "crates/nirvana_dom",
     "crates/nirvana_html",
+    "crates/nirvana_css",
 ]
 resolver = "2"
 
