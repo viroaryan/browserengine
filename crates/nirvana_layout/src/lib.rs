@@ -3,6 +3,7 @@
 pub mod block;
 pub mod box_type;
 pub mod dimensions;
+pub mod hit_test;
 pub mod layout;
 pub mod tree_builder;
 

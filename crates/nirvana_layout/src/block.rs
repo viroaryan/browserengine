@@ -167,6 +167,18 @@ impl LayoutBox {
         for child in &mut self.children {
             child.layout(containing_block, style_tree);
         }
+
+        if !self.children.is_empty() {
+            let mut max_w: f32 = 0.0;
+            let mut max_h: f32 = 0.0;
+            for child in &self.children {
+                let mb = child.dimensions.margin_box();
+                max_w = max_w.max(mb.right() - self.dimensions.content.origin.x);
+                max_h = max_h.max(mb.bottom() - self.dimensions.content.origin.y);
+            }
+            self.dimensions.content.size.width = self.dimensions.content.size.width.max(max_w);
+            self.dimensions.content.size.height = self.dimensions.content.size.height.max(max_h);
+        }
     }
 }
 
