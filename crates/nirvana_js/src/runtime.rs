@@ -12,6 +12,7 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use crate::console::{init_console, LogEntry, LogStore};
 use crate::dom_binding::{create_element_object, init_dom, DomHandle, SharedDom};
+use crate::timers::{init_timers, TimerQueue};
 
 #[derive(Clone, Trace, Finalize)]
 struct FlagCapture {
@@ -22,6 +23,7 @@ struct FlagCapture {
 pub struct JsRuntime {
     context: Context,
     log_store: LogStore,
+    timer_queue: TimerQueue,
     dom_handle: Option<DomHandle>,
 }
 
@@ -35,12 +37,15 @@ impl JsRuntime {
     pub fn new() -> Self {
         let mut context = Context::default();
         let log_store: LogStore = Arc::new(Mutex::new(Vec::new()));
+        let timer_queue = TimerQueue::new();
 
         let _ = init_console(&mut context, log_store.clone());
+        let _ = init_timers(&mut context, timer_queue.clone());
 
         Self {
             context,
             log_store,
+            timer_queue,
             dom_handle: None,
         }
     }
@@ -48,14 +53,17 @@ impl JsRuntime {
     pub fn with_dom(dom: SharedDom) -> Self {
         let mut context = Context::default();
         let log_store: LogStore = Arc::new(Mutex::new(Vec::new()));
+        let timer_queue = TimerQueue::new();
 
         let _ = init_console(&mut context, log_store.clone());
+        let _ = init_timers(&mut context, timer_queue.clone());
         let handle = DomHandle::new(dom);
         let _ = init_dom(&mut context, handle.clone());
 
         Self {
             context,
             log_store,
+            timer_queue,
             dom_handle: Some(handle),
         }
     }
@@ -72,6 +80,38 @@ impl JsRuntime {
             }
             Err(err) => Err(format!("{err}")),
         }
+    }
+
+    pub fn step_timers(&mut self, delta_ms: u64) -> usize {
+        let mut to_fire = Vec::new();
+
+        {
+            let mut timers = self.timer_queue.timers.borrow_mut();
+            let mut i = 0;
+            while i < timers.len() {
+                if timers[i].remaining_ms <= delta_ms {
+                    to_fire.push(timers[i].callback.clone());
+                    if timers[i].is_interval {
+                        timers[i].remaining_ms = timers[i].delay_ms;
+                        i += 1;
+                    } else {
+                        timers.remove(i);
+                    }
+                } else {
+                    timers[i].remaining_ms -= delta_ms;
+                    i += 1;
+                }
+            }
+        }
+
+        let count = to_fire.len();
+        for cb in to_fire {
+            if cb.is_callable() {
+                let _ = cb.call(&JsValue::undefined(), &[], &mut self.context);
+            }
+        }
+
+        count
     }
 
     pub fn dispatch_event(&mut self, target_node: NodeId, event_type: &str) -> Result<bool, String> {
