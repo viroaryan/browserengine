@@ -37,6 +37,7 @@ impl ProtocolHandler for MockHttp404Handler {
         Ok(Response {
             status: 404,
             headers: std::collections::HashMap::new(),
+            raw_headers: Vec::new(),
             body: b"404 Not Found".to_vec(),
             mime_type: Some("text/html".to_string()),
         })

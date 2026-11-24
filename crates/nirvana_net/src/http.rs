@@ -46,6 +46,7 @@ impl ProtocolHandler for HttpHandler {
         let status = resp.status().as_u16();
 
         let mut headers = HashMap::new();
+        let mut raw_headers = Vec::new();
         let mut mime_type = None;
 
         for (name, val) in resp.headers() {
@@ -55,7 +56,8 @@ impl ProtocolHandler for HttpHandler {
                     let mime = val_str.split(';').next().unwrap_or(val_str).trim();
                     mime_type = Some(mime.to_string());
                 }
-                headers.insert(key, val_str.to_string());
+                headers.insert(key.clone(), val_str.to_string());
+                raw_headers.push((key, val_str.to_string()));
             }
         }
 
@@ -67,6 +69,7 @@ impl ProtocolHandler for HttpHandler {
         Ok(Response {
             status,
             headers,
+            raw_headers,
             body,
             mime_type,
         })
