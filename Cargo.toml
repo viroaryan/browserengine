@@ -6,6 +6,7 @@ members = [
     "crates/nirvana_html",
     "crates/nirvana_css",
     "crates/nirvana_style",
+    "crates/nirvana_layout",
 ]
 resolver = "2"
 
