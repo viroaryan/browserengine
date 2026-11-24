@@ -82,7 +82,7 @@ impl LayoutBox {
                     }
                 }
 
-                self.dimensions.content.size.width = w;
+                self.dimensions.content.size.width = w.max(0.0);
             }
             Length::Auto => {
                 let ml = match style.margin_left {
@@ -148,7 +148,7 @@ impl LayoutBox {
     fn calculate_block_height(&mut self, style: &ComputedValues) {
         match style.height {
             Length::Px(h) => {
-                self.dimensions.content.size.height = h;
+                self.dimensions.content.size.height = h.max(0.0);
             }
             Length::Auto => {
                 // Sum of children margin box heights

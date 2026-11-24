@@ -3,25 +3,11 @@ use nirvana_layout::dimensions::{Dimensions, EdgeSizes};
 
 #[test]
 fn test_box_model_areas() {
-    let mut d = Dimensions::default();
-    d.content = Rect::new(50.0, 50.0, 200.0, 100.0);
-    d.padding = EdgeSizes {
-        top: 10.0,
-        right: 10.0,
-        bottom: 10.0,
-        left: 10.0,
-    };
-    d.border = EdgeSizes {
-        top: 2.0,
-        right: 2.0,
-        bottom: 2.0,
-        left: 2.0,
-    };
-    d.margin = EdgeSizes {
-        top: 20.0,
-        right: 15.0,
-        bottom: 20.0,
-        left: 15.0,
+    let d = Dimensions {
+        content: Rect::new(50.0, 50.0, 200.0, 100.0),
+        padding: EdgeSizes::new(10.0, 10.0, 10.0, 10.0),
+        border: EdgeSizes::new(2.0, 2.0, 2.0, 2.0),
+        margin: EdgeSizes::new(20.0, 15.0, 20.0, 15.0),
     };
 
     // Padding box: content expanded by padding

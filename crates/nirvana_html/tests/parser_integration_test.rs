@@ -26,13 +26,13 @@ fn test_parse_html_attribute_retrieval() {
     let mut stack = vec![root];
     while let Some(node_id) = stack.pop() {
         if let Some(node) = tree.get_node(node_id) {
-            if let NodeData::Element(data) = &node.data {
-                if data.tag_name == "a" {
-                    assert_eq!(tree.get_attribute(node_id, "href"), Some("https://nirvanabrowser.org"));
-                    assert_eq!(tree.get_attribute(node_id, "target"), Some("_blank"));
-                    found = true;
-                    break;
-                }
+            if let NodeData::Element(data) = &node.data
+                && data.tag_name == "a"
+            {
+                assert_eq!(tree.get_attribute(node_id, "href"), Some("https://nirvanabrowser.org"));
+                assert_eq!(tree.get_attribute(node_id, "target"), Some("_blank"));
+                found = true;
+                break;
             }
             stack.extend(tree.children(node_id));
         }

@@ -11,8 +11,10 @@ fn test_block_width_auto_expansion() {
     let style_tree = compute_styles(&dom, &[]);
     let mut layout_root = build_layout_tree(&dom, &style_tree).unwrap();
 
-    let mut viewport_containing_block = Dimensions::default();
-    viewport_containing_block.content = Rect::new(0.0, 0.0, 800.0, 600.0);
+    let viewport_containing_block = Dimensions {
+        content: Rect::new(0.0, 0.0, 800.0, 600.0),
+        ..Default::default()
+    };
 
     layout_root.layout(&viewport_containing_block, &style_tree);
 
@@ -27,8 +29,10 @@ fn test_block_margin_auto_centering() {
     let style_tree = compute_styles(&dom, &[]);
     let mut layout_root = build_layout_tree(&dom, &style_tree).unwrap();
 
-    let mut viewport_containing_block = Dimensions::default();
-    viewport_containing_block.content = Rect::new(0.0, 0.0, 800.0, 600.0);
+    let viewport_containing_block = Dimensions {
+        content: Rect::new(0.0, 0.0, 800.0, 600.0),
+        ..Default::default()
+    };
 
     layout_root.layout(&viewport_containing_block, &style_tree);
 
@@ -55,8 +59,10 @@ fn test_block_vertical_stacking_and_auto_height() {
     let style_tree = compute_styles(&dom, &[]);
     let mut layout_root = build_layout_tree(&dom, &style_tree).unwrap();
 
-    let mut viewport_containing_block = Dimensions::default();
-    viewport_containing_block.content = Rect::new(0.0, 0.0, 500.0, 1000.0);
+    let viewport_containing_block = Dimensions {
+        content: Rect::new(0.0, 0.0, 500.0, 1000.0),
+        ..Default::default()
+    };
 
     layout_root.layout(&viewport_containing_block, &style_tree);
 
@@ -73,4 +79,24 @@ fn test_block_vertical_stacking_and_auto_height() {
 
     // Parent height expands to enclose all children: 50 + 10 + 100 = 160.0
     assert_eq!(parent_box.dimensions.content.height(), 160.0);
+}
+
+#[test]
+fn test_block_overconstrained_ltr_resolution() {
+    let html = r#"<div style="width: 300px; margin-left: 50px; margin-right: 50px;"></div>"#;
+    let dom = parse_html(html);
+    let style_tree = compute_styles(&dom, &[]);
+    let mut layout_root = build_layout_tree(&dom, &style_tree).unwrap();
+
+    let viewport_cb = Dimensions {
+        content: Rect::new(0.0, 0.0, 800.0, 600.0),
+        ..Default::default()
+    };
+    layout_root.layout(&viewport_cb, &style_tree);
+
+    let body = &layout_root.children[0];
+    let div = &body.children[0];
+    assert_eq!(div.dimensions.margin.left, 50.0);
+    // 800 - 300 - 50 = 450.0 (margin-right absorbs underflow in LTR)
+    assert_eq!(div.dimensions.margin.right, 450.0);
 }
