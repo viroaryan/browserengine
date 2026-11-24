@@ -173,12 +173,11 @@ impl NirvanaEngine {
         let default_domain = url.host().unwrap_or("");
         let default_path = url.path();
         for (name, val) in &resp.raw_headers {
-            if name.eq_ignore_ascii_case("set-cookie") {
-                if let Some(cookie) =
+            if name.eq_ignore_ascii_case("set-cookie")
+                && let Some(cookie) =
                     nirvana_net::cookie::parse_set_cookie(val, default_domain, default_path)
-                {
-                    self.cookie_jar.borrow_mut().store(cookie, &url);
-                }
+            {
+                self.cookie_jar.borrow_mut().store(cookie, &url);
             }
         }
 

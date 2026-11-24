@@ -91,11 +91,7 @@ impl Origin {
     pub fn as_string(&self) -> String {
         match self {
             Origin::Tuple { scheme, host, port } => {
-                let is_default_port = match (scheme.as_str(), *port) {
-                    ("http", 80) => true,
-                    ("https", 443) => true,
-                    _ => false,
-                };
+                let is_default_port = matches!((scheme.as_str(), *port), ("http", 80) | ("https", 443));
                 if is_default_port || *port == 0 {
                     format!("{scheme}://{host}")
                 } else {
@@ -181,20 +177,17 @@ impl CspPolicy {
                     return true;
                 }
             }
-            if src.ends_with(':') {
-                let expected_scheme = &src[..src.len() - 1];
-                if sub_scheme.eq_ignore_ascii_case(expected_scheme) {
-                    return true;
-                }
+            if let Some(expected_scheme) = src.strip_suffix(':')
+                && sub_scheme.eq_ignore_ascii_case(expected_scheme)
+            {
+                return true;
             }
-            if let Ok(allowed_url) = Url::parse(src) {
-                if let Some(allowed_host) = allowed_url.host() {
-                    if sub_host.eq_ignore_ascii_case(allowed_host)
-                        && sub_scheme.eq_ignore_ascii_case(allowed_url.scheme())
-                    {
-                        return true;
-                    }
-                }
+            if let Ok(allowed_url) = Url::parse(src)
+                && let Some(allowed_host) = allowed_url.host()
+                && sub_host.eq_ignore_ascii_case(allowed_host)
+                && sub_scheme.eq_ignore_ascii_case(allowed_url.scheme())
+            {
+                return true;
             }
         }
 

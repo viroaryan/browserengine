@@ -86,10 +86,10 @@ pub fn create_storage_object(
             let key_str = key.to_std_string_escaped();
             let origin = cap.current_origin.borrow().clone();
             let backend = cap.backend.borrow();
-            if let Some(entries) = backend.get_entries(&origin, cap.is_session) {
-                if let Some((_, val)) = entries.iter().find(|(k, _)| k == &key_str) {
-                    return Ok(JsValue::from(js_string!(val.as_str())));
-                }
+            if let Some(entries) = backend.get_entries(&origin, cap.is_session)
+                && let Some((_, val)) = entries.iter().find(|(k, _)| k == &key_str)
+            {
+                return Ok(JsValue::from(js_string!(val.as_str())));
             }
             Ok(JsValue::null())
         },
@@ -165,10 +165,10 @@ pub fn create_storage_object(
             let index = index_val as usize;
             let origin = cap.current_origin.borrow().clone();
             let backend = cap.backend.borrow();
-            if let Some(entries) = backend.get_entries(&origin, cap.is_session) {
-                if index < entries.len() {
-                    return Ok(JsValue::from(js_string!(entries[index].0.as_str())));
-                }
+            if let Some(entries) = backend.get_entries(&origin, cap.is_session)
+                && index < entries.len()
+            {
+                return Ok(JsValue::from(js_string!(entries[index].0.as_str())));
             }
             Ok(JsValue::null())
         },

@@ -60,10 +60,10 @@ impl ResourceLoader {
         let url_str = url.as_str();
 
         // 1. Check cache (only when no dynamic request headers like Cookie are provided)
-        if headers.is_empty() {
-            if let Some(cached) = self.cache.get(&url_str) {
-                return Ok(cached);
-            }
+        if headers.is_empty()
+            && let Some(cached) = self.cache.get(&url_str)
+        {
+            return Ok(cached);
         }
 
         // 2. Find matching handler
