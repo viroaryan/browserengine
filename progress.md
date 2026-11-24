@@ -45,7 +45,7 @@
 - [x] Task 1: Form Controls UA Styling & Layout Sizing (`nirvana_style`, `nirvana_layout`)
 - [x] Task 2: Caret & Selection Display Commands (`nirvana_gfx`)
 - [x] Task 3: Input State Management & Engine Editing APIs (`nirvana_android`)
-- [ ] Task 4: JNI Bridge for Input & IME (`crates/nirvana_android`)
+- [x] Task 4: JNI Bridge for Input & IME (`crates/nirvana_android`)
 - [ ] Task 5: Android `NirvanaView.kt` Soft Keyboard Integration
 - [ ] Task 6: End-to-End User Input Test & Full Workspace Verification
 - [ ] Whole-Branch Review & Verification

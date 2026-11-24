@@ -2,7 +2,7 @@
 
 use crate::engine::NirvanaEngine;
 use jni::objects::{JByteBuffer, JClass, JString};
-use jni::sys::{jboolean, jbyteArray, jfloat, jint, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jfloat, jfloatArray, jint, jlong, jstring};
 use jni::JNIEnv;
 use std::panic::catch_unwind;
 
@@ -367,6 +367,165 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetCu
         }
     }));
     result.unwrap_or(std::ptr::null_mut())
+}
+
+/// Handles a click/touch tap at screen coordinates, returning target JSON and managing input focus.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeHandleClick(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    x: jfloat,
+    y: jfloat,
+) -> jstring {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+
+        let json = match engine.handle_click(x, y) {
+            Some(hit) => {
+                let tag = escape_json(&hit.tag);
+                let href = hit.href.as_deref().map(escape_json);
+                let text = hit.text.as_deref().map(escape_json);
+                format!(
+                    r#"{{"tag":"{}","href":{},"text":{}}}"#,
+                    tag,
+                    href.map(|h| format!("\"{}\"", h))
+                        .unwrap_or_else(|| "null".to_string()),
+                    text.map(|t| format!("\"{}\"", t))
+                        .unwrap_or_else(|| "null".to_string()),
+                )
+            }
+            None => String::new(),
+        };
+
+        match env.new_string(json) {
+            Ok(js) => js.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
+}
+
+/// Returns true (1) if an <input> or <textarea> element currently has focus.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeIsInputFocused(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jboolean {
+    let result = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0;
+        };
+        if engine.is_input_focused() {
+            1
+        } else {
+            0
+        }
+    });
+    result.unwrap_or(0)
+}
+
+/// Inserts text into the currently focused form element.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeInsertText(
+    mut env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    text: JString,
+) {
+    let _ = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return;
+        };
+        let text_str: String = match env.get_string(&text) {
+            Ok(s) => s.into(),
+            Err(_) => return,
+        };
+        engine.insert_text(&text_str);
+    }));
+}
+
+/// Deletes the character before the caret in the currently focused form element.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeDeleteBackward(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) {
+    let _ = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return;
+        };
+        engine.delete_backward();
+    });
+}
+
+/// Returns the current text content of the focused element.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetFocusedText(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jstring {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        match engine.focused_text() {
+            Some(t) => match env.new_string(t) {
+                Ok(js) => js.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            },
+            None => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
+}
+
+/// Returns the screen bounds [x, y, width, height] of the currently focused element.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetFocusedBounds(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jfloatArray {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        match engine.focused_bounds() {
+            Some(rect) => {
+                let region = [rect.x(), rect.y(), rect.width(), rect.height()];
+                match env.new_float_array(4) {
+                    Ok(arr) => {
+                        let _ = env.set_float_array_region(&arr, 0, &region);
+                        arr.into_raw()
+                    }
+                    Err(_) => std::ptr::null_mut(),
+                }
+            }
+            None => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
+}
+
+/// Removes focus from currently focused element.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeBlur(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) {
+    let _ = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return;
+        };
+        engine.blur();
+    });
 }
 
 fn escape_json(s: &str) -> String {
