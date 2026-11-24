@@ -215,26 +215,55 @@ impl Canvas {
         }
     }
 
-    /// Executes all commands in the display list onto this canvas.
-    pub fn render_display_list(&mut self, list: &DisplayList) {
+    /// Executes all commands in the display list onto this canvas with a translation offset.
+    pub fn render_display_list_with_offset(
+        &mut self,
+        list: &DisplayList,
+        offset_x: f32,
+        offset_y: f32,
+    ) {
         for cmd in &list.commands {
             match cmd {
                 DisplayCommand::SolidColor { rect, color } => {
-                    self.fill_rect(*rect, *color);
+                    let shifted_rect = Rect::new(
+                        rect.x() + offset_x,
+                        rect.y() + offset_y,
+                        rect.width(),
+                        rect.height(),
+                    );
+                    self.fill_rect(shifted_rect, *color);
                 }
                 DisplayCommand::Border {
                     rect,
                     widths,
                     color,
                 } => {
-                    self.draw_borders(*rect, *widths, *color);
+                    let shifted_rect = Rect::new(
+                        rect.x() + offset_x,
+                        rect.y() + offset_y,
+                        rect.width(),
+                        rect.height(),
+                    );
+                    self.draw_borders(shifted_rect, *widths, *color);
                 }
                 DisplayCommand::Text { text, origin, color } => {
                     let font = nirvana_font::Font::default_font();
-                    self.draw_text(font, text, origin.x, origin.y, 16.0, *color);
+                    self.draw_text(
+                        font,
+                        text,
+                        origin.x + offset_x,
+                        origin.y + offset_y,
+                        16.0,
+                        *color,
+                    );
                 }
             }
         }
+    }
+
+    /// Executes all commands in the display list onto this canvas.
+    pub fn render_display_list(&mut self, list: &DisplayList) {
+        self.render_display_list_with_offset(list, 0.0, 0.0);
     }
 
     /// Encodes canvas RGBA pixels into PNG format bytes.
