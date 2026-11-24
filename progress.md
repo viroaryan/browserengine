@@ -24,3 +24,14 @@
 
 ---
 **Phase 9 Status:** COMPLETED & SIGNED OFF. All tests passing (10/10 crates), 0 clippy warnings.
+
+# Progress Ledger: Phase 10 - Image Pipeline & Embedded Media (`<img>` Tag Support)
+
+## Task Status
+- [ ] Task 1: Image Representation & Pure-Rust Image Decoder (`crates/nirvana_gfx`)
+- [ ] Task 2: Replaced Element Box Model & Intrinsic Sizing (`crates/nirvana_layout`)
+- [ ] Task 3: Display List Image Item & tiny-skia Bitmap Rasterization (`crates/nirvana_gfx`)
+- [ ] Task 4: DOM Image Discovery & Resource Fetching (`crates/nirvana_android`)
+- [ ] Task 5: Broken Image Fallback & Alt Text Support
+- [ ] Task 6: End-to-End Image Pipeline Test & Full Workspace Verification
+- [ ] Whole-Branch Review & Verification
