@@ -81,6 +81,17 @@
 ---
 **Phase 13 Status:** COMPLETED & SIGNED OFF. All tests passing (12/12 crates), 0 clippy warnings. Strict `#![forbid(unsafe_code)]` enforced across all 11 core crates.
 
+# Progress Ledger: Phase 14 - Engine Hardening, Performance Profiling, Memory Audit & Final Android Production Release
+
+## Task Status
+- [ ] Task 1: Engine Hardening, Malformed Input Recovery & Recursion Depth Guards (`nirvana_html`, `nirvana_gfx`, `nirvana_android`)
+- [ ] Task 2: Frame Timing Telemetry & Performance Profiling Harness (`nirvana_android`, Kotlin)
+- [ ] Task 3: Memory Audit, Lifecycle Stress Testing & Resource Clean-up (`nirvana_android`)
+- [ ] Task 4: Complete Production Documentation & Architecture Manual (`README.md`, `docs/`)
+- [ ] Task 5: End-to-End Final Production Verification & Workspace Cleanliness
+- [ ] Whole-Branch Review & Verification
+
+
 
 
 
