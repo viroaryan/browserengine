@@ -84,3 +84,25 @@ fn test_build_display_list_with_images_and_broken_fallback() {
     });
     assert!(has_alt_text, "Missing image should render alt text");
 }
+
+#[test]
+fn test_missing_src_attribute_renders_placeholder_and_alt() {
+    let html = "<html><body><img alt=\"Unspecified Source\"></body></html>";
+    let dom = parse_html(html);
+    let ua_sheet = nirvana_style::user_agent::user_agent_stylesheet();
+    let style_tree = compute_styles(&dom, &[ua_sheet]);
+    let layout_root = layout_document(&dom, &style_tree, Size::new(800.0, 600.0)).unwrap();
+
+    let images = ImageMap::new();
+    let display_list = build_display_list_with_images(&layout_root, &style_tree, &dom, &images);
+
+    let has_border = display_list.commands.iter().any(|cmd| {
+        matches!(cmd, DisplayCommand::Border { .. })
+    });
+    assert!(has_border, "Image without src should render placeholder border");
+
+    let has_alt = display_list.commands.iter().any(|cmd| {
+        matches!(cmd, DisplayCommand::Text { text, .. } if text == "Unspecified Source")
+    });
+    assert!(has_alt, "Image without src should render alt text");
+}

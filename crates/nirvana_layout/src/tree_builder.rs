@@ -61,15 +61,29 @@ fn build_box(
                 let attr_w = dom.get_attribute(node_id, "width").and_then(|s| s.parse::<f32>().ok());
                 let attr_h = dom.get_attribute(node_id, "height").and_then(|s| s.parse::<f32>().ok());
 
-                if let Some(&(iw, ih)) = context.image_dimensions.get(&node_id) {
-                    intrinsic_size = Some(nirvana_core::geometry::Size::new(iw, ih));
-                } else if attr_w.is_some() || attr_h.is_some() {
-                    let iw = attr_w.unwrap_or_else(|| attr_h.unwrap_or(16.0));
-                    let ih = attr_h.unwrap_or_else(|| attr_w.unwrap_or(16.0));
-                    intrinsic_size = Some(nirvana_core::geometry::Size::new(iw, ih));
+                let (iw, ih) = if let Some(&(w, h)) = context.image_dimensions.get(&node_id) {
+                    (w, h)
                 } else {
-                    intrinsic_size = Some(nirvana_core::geometry::Size::new(16.0, 16.0));
-                }
+                    (16.0, 16.0)
+                };
+
+                let effective_w = attr_w.unwrap_or_else(|| {
+                    if let Some(ah) = attr_h {
+                        if ih > 0.0 { ah * (iw / ih) } else { iw }
+                    } else {
+                        iw
+                    }
+                });
+
+                let effective_h = attr_h.unwrap_or_else(|| {
+                    if let Some(aw) = attr_w {
+                        if iw > 0.0 { aw * (ih / iw) } else { ih }
+                    } else {
+                        ih
+                    }
+                });
+
+                intrinsic_size = Some(nirvana_core::geometry::Size::new(effective_w, effective_h));
             }
 
             b_type

@@ -243,6 +243,13 @@ impl NirvanaEngine {
                 },
             };
 
+            // Check if canonical URL is already cached
+            let canonical = img_url.as_str();
+            if let Some(existing) = self.images.get(&canonical) {
+                self.images.insert(src.clone(), existing.clone());
+                continue;
+            }
+
             let resp = match self.loader.fetch(&img_url) {
                 Ok(r) => r,
                 Err(e) => {
@@ -382,8 +389,9 @@ fn discover_images(dom: &DomTree) -> Vec<(NodeId, String)> {
             && let Some(tag) = dom.tag_name(node_id)
             && tag.eq_ignore_ascii_case("img")
             && let Some(src) = dom.get_attribute(node_id, "src")
+            && !src.trim().is_empty()
         {
-            images.push((node_id, src.to_string()));
+            images.push((node_id, src.trim().to_string()));
         }
         for child in dom.children(node_id).into_iter().rev() {
             stack.push(child);

@@ -85,19 +85,8 @@ impl LayoutBox {
                 self.dimensions.content.size.width = w.max(0.0);
             }
             Length::Auto => {
-                let ml = match style.margin_left {
-                    Length::Px(val) => val,
-                    Length::Auto => 0.0,
-                };
-                let mr = match style.margin_right {
-                    Length::Px(val) => val,
-                    Length::Auto => 0.0,
-                };
-
-                self.dimensions.margin = EdgeSizes::new(m_top, mr, m_bottom, ml);
-
-                let w = if let Some(intrinsic) = self.intrinsic_size {
-                    if let Length::Px(h) = style.height {
+                if let Some(intrinsic) = self.intrinsic_size {
+                    let w = if let Length::Px(h) = style.height {
                         if intrinsic.height > 0.0 {
                             h * (intrinsic.width / intrinsic.height)
                         } else {
@@ -105,8 +94,49 @@ impl LayoutBox {
                         }
                     } else {
                         intrinsic.width
+                    };
+
+                    let total_fixed = w
+                        + self.dimensions.padding.left
+                        + self.dimensions.padding.right
+                        + self.dimensions.border.left
+                        + self.dimensions.border.right;
+
+                    let underflow = container_width - total_fixed;
+
+                    match (style.margin_left, style.margin_right) {
+                        (Length::Auto, Length::Auto) => {
+                            let half = (underflow / 2.0).max(0.0);
+                            self.dimensions.margin = EdgeSizes::new(m_top, half, m_bottom, half);
+                        }
+                        (Length::Auto, Length::Px(mr)) => {
+                            let ml = underflow - mr;
+                            self.dimensions.margin = EdgeSizes::new(m_top, mr, m_bottom, ml);
+                        }
+                        (Length::Px(ml), Length::Auto) => {
+                            let mr = underflow - ml;
+                            self.dimensions.margin = EdgeSizes::new(m_top, mr, m_bottom, ml);
+                        }
+                        (Length::Px(ml), Length::Px(_mr)) => {
+                            let mr_adjusted = underflow - ml;
+                            self.dimensions.margin =
+                                EdgeSizes::new(m_top, mr_adjusted, m_bottom, ml);
+                        }
                     }
+
+                    self.dimensions.content.size.width = w.max(0.0);
                 } else {
+                    let ml = match style.margin_left {
+                        Length::Px(val) => val,
+                        Length::Auto => 0.0,
+                    };
+                    let mr = match style.margin_right {
+                        Length::Px(val) => val,
+                        Length::Auto => 0.0,
+                    };
+
+                    self.dimensions.margin = EdgeSizes::new(m_top, mr, m_bottom, ml);
+
                     let total_non_content = self.dimensions.padding.left
                         + self.dimensions.padding.right
                         + self.dimensions.border.left
@@ -114,10 +144,9 @@ impl LayoutBox {
                         + self.dimensions.margin.left
                         + self.dimensions.margin.right;
 
-                    (container_width - total_non_content).max(0.0)
-                };
-
-                self.dimensions.content.size.width = w.max(0.0);
+                    let w = (container_width - total_non_content).max(0.0);
+                    self.dimensions.content.size.width = w;
+                }
             }
         }
     }
@@ -213,7 +242,15 @@ impl LayoutBox {
         let m_left = length_to_px(&style.margin_left);
         self.dimensions.margin = EdgeSizes::new(m_top, m_right, m_bottom, m_left);
 
-        self.dimensions.content.origin = containing_block.content.origin;
+        let x = containing_block.content.x()
+            + self.dimensions.margin.left
+            + self.dimensions.border.left
+            + self.dimensions.padding.left;
+        let y = containing_block.content.y()
+            + self.dimensions.margin.top
+            + self.dimensions.border.top
+            + self.dimensions.padding.top;
+        self.dimensions.content.origin = Point::new(x, y);
 
         if let Some(intrinsic) = self.intrinsic_size {
             let width = match style.width {

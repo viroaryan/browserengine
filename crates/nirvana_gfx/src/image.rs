@@ -14,7 +14,17 @@ pub struct DecodedImage {
 
 impl DecodedImage {
     /// Constructs a new DecodedImage from dimensions and RGBA8 buffer.
+    ///
+    /// # Panics
+    /// Panics if `rgba_pixels.len() != (width as usize) * (height as usize) * 4`.
     pub fn new(width: u32, height: u32, rgba_pixels: Vec<u8>) -> Self {
+        assert_eq!(
+            rgba_pixels.len(),
+            (width as usize) * (height as usize) * 4,
+            "DecodedImage buffer size mismatch: expected {} bytes, got {}",
+            (width as usize) * (height as usize) * 4,
+            rgba_pixels.len()
+        );
         Self {
             width,
             height,

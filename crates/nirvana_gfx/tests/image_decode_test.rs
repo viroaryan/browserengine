@@ -43,6 +43,26 @@ fn test_decode_invalid_corrupted_bytes_fails() {
 }
 
 #[test]
+fn test_decode_valid_jpeg() {
+    use image::codecs::jpeg::JpegEncoder;
+    use image::ColorType;
+
+    let mut jpeg_bytes = Vec::new();
+    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_bytes, 80);
+    // 2x2 RGB image: 4 pixels * 3 channels = 12 bytes
+    let raw_rgb = vec![
+        255, 0, 0,    0, 255, 0,
+        0, 0, 255,    255, 255, 0,
+    ];
+    encoder.encode(&raw_rgb, 2, 2, ColorType::Rgb8.into()).expect("Encode JPEG failed");
+
+    let decoded = decode_image(&jpeg_bytes).expect("Failed to decode valid JPEG");
+    assert_eq!(decoded.width, 2);
+    assert_eq!(decoded.height, 2);
+    assert_eq!(decoded.rgba_pixels.len(), 2 * 2 * 4);
+}
+
+#[test]
 fn test_decoded_image_aspect_ratio() {
     let img_wide = DecodedImage::new(800, 400, vec![0; 800 * 400 * 4]);
     assert_eq!(img_wide.aspect_ratio(), 2.0);

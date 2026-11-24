@@ -215,9 +215,23 @@ impl Canvas {
         }
     }
 
-    /// Draws a decoded image scaled to fill the target destination rectangle.
+    /// Draws a decoded image scaled to fill the target destination rectangle using
+    /// nearest-neighbor coordinate sampling with boundary clamping.
     pub fn draw_image(&mut self, rect: Rect, image: &crate::image::DecodedImage) {
-        if image.width == 0 || image.height == 0 || rect.width() <= 0.0 || rect.height() <= 0.0 {
+        if image.width == 0
+            || image.height == 0
+            || !rect.x().is_finite()
+            || !rect.y().is_finite()
+            || !rect.width().is_finite()
+            || !rect.height().is_finite()
+            || rect.width() <= 0.0
+            || rect.height() <= 0.0
+        {
+            return;
+        }
+
+        let expected_bytes = (image.width as usize) * (image.height as usize) * 4;
+        if image.rgba_pixels.len() < expected_bytes {
             return;
         }
 

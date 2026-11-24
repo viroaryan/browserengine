@@ -65,15 +65,15 @@ fn render_layout_box(
     if let Some(id) = layout_box.node_id()
         && dom.node_type(id) == Some(NodeType::Element)
         && dom.tag_name(id).is_some_and(|t| t.eq_ignore_ascii_case("img"))
-        && let Some(src) = dom.get_attribute(id, "src")
     {
-        if let Some(img) = images.get(src) {
+        let img_opt = dom.get_attribute(id, "src").and_then(|s| images.get(s));
+        if let Some(img) = img_opt {
             list.push(DisplayCommand::DrawImage {
                 rect: layout_box.dimensions.content,
                 image: img.clone(),
             });
         } else {
-            // Broken image placeholder border
+            // Broken or missing image placeholder border
             list.push(DisplayCommand::Border {
                 rect: layout_box.dimensions.content,
                 widths: nirvana_layout::dimensions::EdgeSizes::new(1.0, 1.0, 1.0, 1.0),
