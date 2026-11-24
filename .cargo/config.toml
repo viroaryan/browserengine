@@ -5,3 +5,7 @@ rustflags = [
     "-L", "native=C:\\Users\\aryan\\.mozbuild\\vs\\Windows Kits\\10\\Lib\\10.0.28000.0\\um\\x64",
     "-L", "native=C:\\Users\\aryan\\.mozbuild\\vs\\Windows Kits\\10\\Lib\\10.0.28000.0\\ucrt\\x64",
 ]
+
+[target.aarch64-linux-android]
+linker = "C:\\Users\\aryan\\.mozbuild\\android-ndk-r30\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\aarch64-linux-android24-clang.cmd"
+

@@ -16,3 +16,10 @@ Thumbs.db
 
 # Superpowers temporary workspace (handled by sdd, but good practice)
 .superpowers/
+
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/local.properties
+android/app/src/main/jniLibs/
+

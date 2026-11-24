@@ -32,12 +32,28 @@ class NirvanaView @JvmOverloads constructor(
     }
 
     private val engineLock = Any()
-    private var engine: NirvanaEngine? = null
+    private var _engine: NirvanaEngine? = null
+
+    /**
+     * Exposes the active or initialized NirvanaEngine instance.
+     */
+    val engine: NirvanaEngine
+        get() = synchronized(engineLock) {
+            _engine ?: NirvanaEngine(width.coerceAtLeast(1080), height.coerceAtLeast(1920)).also {
+                it.loadHtml(currentHtml, currentCss)
+                _engine = it
+            }
+        }
+
     private var pixelBitmap: Bitmap? = null
     private var directPixelBuffer: ByteBuffer? = null
     private var currentHtml: String = "<html><body><h1>Nirvana Browser</h1></body></html>"
     private var currentCss: String = ""
-    private var onLinkClickListener: OnLinkClickListener? = null
+
+    /**
+     * Callback invoked when the user taps on an anchor link.
+     */
+    var onLinkClickListener: ((String) -> Unit)? = null
     private val networkExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var activeNavigationFuture: java.util.concurrent.Future<*>? = null
 
@@ -48,7 +64,7 @@ class NirvanaView @JvmOverloads constructor(
         override fun run() {
             if (scroller.computeScrollOffset()) {
                 synchronized(engineLock) {
-                    val eng = engine ?: return
+                    val eng = _engine ?: return
                     eng.scrollTo(scroller.currX.toFloat(), scroller.currY.toFloat())
                     drawFrameLocked(eng)
                 }
@@ -78,7 +94,7 @@ class NirvanaView @JvmOverloads constructor(
                 distanceY: Float
             ): Boolean {
                 synchronized(engineLock) {
-                    val eng = engine ?: return false
+                    val eng = _engine ?: return false
                     eng.scrollBy(distanceX, distanceY)
                     drawFrameLocked(eng)
                 }
@@ -92,7 +108,7 @@ class NirvanaView @JvmOverloads constructor(
                 velocityY: Float
             ): Boolean {
                 val (startX, startY, maxY) = synchronized(engineLock) {
-                    val eng = engine ?: return false
+                    val eng = _engine ?: return false
                     Triple(eng.scrollX.toInt(), eng.scrollY.toInt(), eng.maxScrollY.toInt())
                 }
 
@@ -108,9 +124,9 @@ class NirvanaView @JvmOverloads constructor(
             }
 
             override fun onSingleTapUp(e: MotionEvent): Boolean {
-                val wasFocused = synchronized(engineLock) { engine?.isInputFocused == true }
+                val wasFocused = synchronized(engineLock) { _engine?.isInputFocused == true }
                 val (hit, isInputFocused) = synchronized(engineLock) {
-                    val eng = engine ?: return false
+                    val eng = _engine ?: return false
                     val target = eng.handleClick(e.x, e.y)
                     val focused = eng.isInputFocused
                     if (wasFocused || focused) {
@@ -129,8 +145,9 @@ class NirvanaView @JvmOverloads constructor(
 
                 if (hit != null && !hit.href.isNullOrEmpty()) {
                     val href = hit.href
-                    if (onLinkClickListener != null) {
-                        onLinkClickListener?.onLinkClick(href)
+                    val listener = onLinkClickListener
+                    if (listener != null) {
+                        listener.invoke(href)
                     } else {
                         loadUrl(href)
                     }
@@ -151,7 +168,7 @@ class NirvanaView @JvmOverloads constructor(
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 if (!text.isNullOrEmpty()) {
                     synchronized(engineLock) {
-                        val eng = engine ?: return false
+                        val eng = _engine ?: return false
                         eng.insertText(text.toString())
                         drawFrameLocked(eng)
                     }
@@ -162,7 +179,7 @@ class NirvanaView @JvmOverloads constructor(
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 if (beforeLength > 0) {
                     synchronized(engineLock) {
-                        val eng = engine ?: return false
+                        val eng = _engine ?: return false
                         repeat(beforeLength) {
                             eng.deleteBackward()
                         }
@@ -176,7 +193,7 @@ class NirvanaView @JvmOverloads constructor(
                 if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                     if (event.keyCode == android.view.KeyEvent.KEYCODE_DEL) {
                         synchronized(engineLock) {
-                            val eng = engine ?: return false
+                            val eng = _engine ?: return false
                             eng.deleteBackward()
                             drawFrameLocked(eng)
                         }
@@ -184,7 +201,7 @@ class NirvanaView @JvmOverloads constructor(
                     } else if (event.unicodeChar != 0) {
                         val charStr = event.unicodeChar.toChar().toString()
                         synchronized(engineLock) {
-                            val eng = engine ?: return false
+                            val eng = _engine ?: return false
                             eng.insertText(charStr)
                             drawFrameLocked(eng)
                         }
@@ -200,7 +217,19 @@ class NirvanaView @JvmOverloads constructor(
      * Registers a listener for user anchor link taps.
      */
     fun setOnLinkClickListener(listener: OnLinkClickListener?) {
-        this.onLinkClickListener = listener
+        this.onLinkClickListener = if (listener != null) { { url: String -> listener.onLinkClick(url) } } else null
+    }
+
+    /**
+     * Requests an asynchronous render and surface redraw on the main UI thread.
+     */
+    fun requestRender() {
+        post {
+            synchronized(engineLock) {
+                val eng = _engine ?: return@post
+                drawFrameLocked(eng)
+            }
+        }
     }
 
     /**
@@ -210,7 +239,7 @@ class NirvanaView @JvmOverloads constructor(
         currentHtml = html
         currentCss = css
         synchronized(engineLock) {
-            engine?.let { eng ->
+            _engine?.let { eng ->
                 eng.loadHtml(html, css)
                 eng.render()
                 drawFrameLocked(eng)
@@ -224,16 +253,16 @@ class NirvanaView @JvmOverloads constructor(
      */
     fun loadUrl(url: String) {
         synchronized(engineLock) {
-            if (engine == null) {
+            if (_engine == null) {
                 val eng = NirvanaEngine(width.coerceAtLeast(1), height.coerceAtLeast(1))
-                engine = eng
+                _engine = eng
                 allocateBuffers(eng.width, eng.height)
             }
         }
 
         activeNavigationFuture?.cancel(true)
         activeNavigationFuture = networkExecutor.submit {
-            val eng = synchronized(engineLock) { engine } ?: return@submit
+            val eng = synchronized(engineLock) { _engine } ?: return@submit
             if (Thread.currentThread().isInterrupted) return@submit
 
             val success = try {
@@ -245,7 +274,7 @@ class NirvanaView @JvmOverloads constructor(
             if (success && !Thread.currentThread().isInterrupted) {
                 post {
                     synchronized(engineLock) {
-                        val currentEng = engine ?: return@post
+                        val currentEng = _engine ?: return@post
                         drawFrameLocked(currentEng)
                     }
                 }
@@ -267,9 +296,9 @@ class NirvanaView @JvmOverloads constructor(
         val h = height.coerceAtLeast(1)
 
         synchronized(engineLock) {
-            val eng = engine ?: NirvanaEngine(w, h).also {
+            val eng = _engine ?: NirvanaEngine(w, h).also {
                 it.loadHtml(currentHtml, currentCss)
-                engine = it
+                _engine = it
             }
 
             if (eng.width != w || eng.height != h) {
@@ -290,8 +319,8 @@ class NirvanaView @JvmOverloads constructor(
         activeNavigationFuture = null
 
         synchronized(engineLock) {
-            engine?.close()
-            engine = null
+            _engine?.close()
+            _engine = null
             pixelBitmap?.recycle()
             pixelBitmap = null
             directPixelBuffer = null
@@ -334,7 +363,7 @@ class NirvanaView @JvmOverloads constructor(
 
     private fun drawFrame() {
         synchronized(engineLock) {
-            val eng = engine ?: return
+            val eng = _engine ?: return
             drawFrameLocked(eng)
         }
     }
