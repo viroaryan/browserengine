@@ -19,6 +19,7 @@ pub struct DomHandle {
     pub dom: SharedDom,
     #[unsafe_ignore_trace]
     pub mutated: Rc<RefCell<bool>>,
+    pub events: crate::events::EventRegistry,
 }
 
 impl DomHandle {
@@ -26,6 +27,7 @@ impl DomHandle {
         Self {
             dom,
             mutated: Rc::new(RefCell::new(false)),
+            events: crate::events::EventRegistry::new(),
         }
     }
 }
@@ -430,6 +432,24 @@ pub fn create_element_object(
         h_style_set,
     );
 
+    // addEventListener
+    let h_add_ev = handle.clone();
+    let add_event_listener_fn = NativeFunction::from_copy_closure_with_captures(
+        |this, args, handle, ctx| {
+            let Some(elem_id) = get_node_id_from_this(this, ctx) else {
+                return Ok(JsValue::undefined());
+            };
+            let ev_type = args.get_or_undefined(0).to_string(ctx)?;
+            let ev_type = ev_type.to_std_string_escaped();
+            let callback_val = args.get_or_undefined(1);
+            if let Some(cb_obj) = callback_val.as_object() {
+                handle.events.add_listener(elem_id, &ev_type, cb_obj.clone());
+            }
+            Ok(JsValue::undefined())
+        },
+        h_add_ev,
+    );
+
     let realm = context.realm().clone();
 
     // Build raw style object
@@ -465,6 +485,7 @@ pub fn create_element_object(
         .function(set_attr_fn, js_string!("setAttribute"), 2)
         .function(rem_attr_fn, js_string!("removeAttribute"), 1)
         .function(append_child_fn, js_string!("appendChild"), 1)
+        .function(add_event_listener_fn, js_string!("addEventListener"), 2)
         .accessor(
             js_string!("textContent"),
             Some(tc_get_js),
