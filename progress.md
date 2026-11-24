@@ -1,9 +1,9 @@
-# Progress Ledger: Phase 6 - Android Integration & JNI Shell
+# Progress Ledger: Phase 7 - Typography & Font Rasterization Engine
 
 ## Task Status
-- [x] Task 1: `nirvana_android` Crate Setup & Engine State Machine (`engine.rs`)
-- [x] Task 2: JNI Export Layer & Memory-Safe Pointer Lifecycle (`jni_api.rs`)
-- [x] Task 3: Surface Blitting & Native Window Buffer Copy (`surface.rs`)
-- [x] Task 4: Android Kotlin/Java Interface & Build Script (`NirvanaEngine.kt` & `NirvanaView.kt`)
-- [x] Task 5: End-to-End Integration Test & Full Workspace Verification
-- [x] Whole-Branch Review & Verification (Approved by Reviewer)
+- [ ] Task 1: `nirvana_font` Crate Setup & Font Loading (`font.rs`)
+- [ ] Task 2: Text Measurement & Line Metrics (`metrics.rs`)
+- [ ] Task 3: Glyph Rasterization & Anti-Aliased Text Blitting (`rasterizer.rs`)
+- [ ] Task 4: Layout Engine Inline Box Text Sizing (`nirvana_layout`)
+- [ ] Task 5: End-to-End Visual Text Rendering Pipeline & Workspace Verification
+- [ ] Whole-Branch Review & Verification
