@@ -10,3 +10,14 @@
 
 ---
 **Phase 8 Status:** COMPLETED & SIGNED OFF. All tests passing (10/10 crates), 0 clippy warnings.
+
+# Progress Ledger: Phase 9 - Network Stack & Resource Loader (`nirvana_net`)
+
+## Task Status
+- [ ] Task 1: WHATWG URL Resolution & String Serialization (`nirvana_url`)
+- [ ] Task 2: `nirvana_net` Core Abstractions, Error, File & Data URI Handlers (`crates/nirvana_net`)
+- [ ] Task 3: HTTP/HTTPS Handler & Resource Loader with In-Memory Cache (`crates/nirvana_net`)
+- [ ] Task 4: Engine Document Navigation & External Stylesheet Discovery (`nirvana_android`)
+- [ ] Task 5: Android Asynchronous Navigation & Auto Link Loading (`NirvanaView.kt`)
+- [ ] Task 6: End-to-End Navigation Pipeline Test & Full Workspace Verification
+- [ ] Whole-Branch Review & Verification
