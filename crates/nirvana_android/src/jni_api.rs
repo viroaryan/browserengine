@@ -2,7 +2,7 @@
 
 use crate::engine::NirvanaEngine;
 use jni::objects::{JByteBuffer, JClass, JString};
-use jni::sys::{jbyteArray, jfloat, jint, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
 use std::panic::catch_unwind;
 
@@ -317,6 +317,53 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeHitTe
         match env.new_string(json) {
             Ok(js) => js.into_raw(),
             Err(_) => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
+}
+
+/// Navigates the engine to a given URL string. Returns true (1) on success, false (0) on failure.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeNavigate(
+    mut env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    url: JString,
+) -> jboolean {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0;
+        };
+        let url_str: String = match env.get_string(&url) {
+            Ok(s) => s.into(),
+            Err(_) => return 0,
+        };
+        if engine.navigate(&url_str).is_ok() {
+            1
+        } else {
+            0
+        }
+    }));
+    result.unwrap_or(0)
+}
+
+/// Returns the current loaded document URL string, or null if no document is loaded.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetCurrentUrl(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jstring {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        match engine.current_url() {
+            Some(u) => match env.new_string(u) {
+                Ok(js) => js.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            },
+            None => std::ptr::null_mut(),
         }
     }));
     result.unwrap_or(std::ptr::null_mut())

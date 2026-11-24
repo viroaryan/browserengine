@@ -4,18 +4,20 @@ use crate::hit_test::{resolve_hit_target, HitTestResult};
 use nirvana_core::geometry::{Point, Size};
 use nirvana_css::ast::StyleSheet;
 use nirvana_css::parser::parse_css;
-use nirvana_dom::DomTree;
+use nirvana_dom::{DomTree, NodeType};
 use nirvana_gfx::builder::build_display_list;
 use nirvana_gfx::canvas::Canvas;
 use nirvana_gfx::display_list::DisplayList;
 use nirvana_html::parse_html;
 use nirvana_layout::box_type::LayoutBox;
 use nirvana_layout::layout::layout_document;
+use nirvana_net::loader::ResourceLoader;
 use nirvana_style::compute::{compute_styles, StyleTree};
+use nirvana_url::Url;
 
 /// Orchestrates HTML parsing, CSS style computation, layout geometry,
 /// and pixel rasterization into a 32-bit RGBA framebuffer.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct NirvanaEngine {
     width: u32,
     height: u32,
@@ -27,6 +29,8 @@ pub struct NirvanaEngine {
     scroll_x: f32,
     scroll_y: f32,
     canvas: Canvas,
+    loader: ResourceLoader,
+    current_url: Option<String>,
 }
 
 impl NirvanaEngine {
@@ -43,6 +47,8 @@ impl NirvanaEngine {
             scroll_x: 0.0,
             scroll_y: 0.0,
             canvas: Canvas::new(width, height),
+            loader: ResourceLoader::new(),
+            current_url: None,
         }
     }
 
@@ -58,6 +64,12 @@ impl NirvanaEngine {
         &self.canvas.pixels
     }
 
+    /// Returns the current loaded document URL string, if any.
+    #[inline]
+    pub fn current_url(&self) -> Option<&str> {
+        self.current_url.as_deref()
+    }
+
     /// Loads and parses an HTML document string, with optional user/author CSS.
     pub fn load_html(&mut self, html: &str, css: Option<&str>) {
         self.dom = Some(parse_html(html));
@@ -65,11 +77,49 @@ impl NirvanaEngine {
         self.scroll_x = 0.0;
         self.scroll_y = 0.0;
         self.display_list = None;
+        self.current_url = None;
 
         if let Some(css_text) = css {
             let sheet = parse_css(css_text);
             self.stylesheets.push(sheet);
         }
+    }
+
+    /// Navigates to a given URL string.
+    /// Fetches document, extracts and fetches linked external stylesheets, and renders.
+    pub fn navigate(&mut self, url_str: &str) -> Result<(), String> {
+        let url = Url::parse(url_str).map_err(|e| e.to_string())?;
+        let resp = self.loader.fetch(&url).map_err(|e| e.to_string())?;
+
+        if resp.status < 200 || resp.status >= 300 {
+            return Err(format!("HTTP error status: {}", resp.status));
+        }
+
+        let html = resp.text().map_err(|e| format!("Invalid UTF-8 document: {e}"))?;
+        let dom = parse_html(html);
+
+        // Discover and load linked external stylesheets: <link rel="stylesheet" href="...">
+        let mut external_sheets = Vec::new();
+        let linked_hrefs = discover_linked_stylesheets(&dom);
+        for href in linked_hrefs {
+            if let Ok(css_url) = url.join(&href)
+                && let Ok(css_resp) = self.loader.fetch(&css_url)
+                && let Ok(css_text) = css_resp.text()
+            {
+                let sheet = parse_css(css_text);
+                external_sheets.push(sheet);
+            }
+        }
+
+        self.dom = Some(dom);
+        self.stylesheets = external_sheets;
+        self.scroll_x = 0.0;
+        self.scroll_y = 0.0;
+        self.display_list = None;
+        self.current_url = Some(url_str.to_string());
+
+        self.render();
+        Ok(())
     }
 
     /// Resizes the viewport and framebuffer canvas.
@@ -197,4 +247,24 @@ fn calculate_content_extent(layout_box: &LayoutBox) -> (f32, f32) {
         max_y = max_y.max(cy);
     }
     (max_x, max_y)
+}
+
+fn discover_linked_stylesheets(dom: &DomTree) -> Vec<String> {
+    let mut hrefs = Vec::new();
+    let mut stack = vec![dom.root_id()];
+    while let Some(node_id) = stack.pop() {
+        if dom.node_type(node_id) == Some(NodeType::Element)
+            && let Some(tag) = dom.tag_name(node_id)
+            && tag.eq_ignore_ascii_case("link")
+            && let Some(rel) = dom.get_attribute(node_id, "rel")
+            && rel.to_ascii_lowercase().contains("stylesheet")
+            && let Some(href) = dom.get_attribute(node_id, "href")
+        {
+            hrefs.push(href.to_string());
+        }
+        for child in dom.children(node_id) {
+            stack.push(child);
+        }
+    }
+    hrefs
 }
