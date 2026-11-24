@@ -267,6 +267,15 @@ class NirvanaEngine(
     }
 
     /**
+     * Clears the in-memory decoded image bitmap cache.
+     */
+    @Synchronized
+    fun clearImageCache() {
+        checkOpen()
+        nativeClearImageCache(nativePtr)
+    }
+
+    /**
      * Retrieves high-resolution timing metrics for the most recent render frame.
      */
     @Synchronized
@@ -344,6 +353,7 @@ class NirvanaEngine(
     private external fun nativeStepTimers(enginePtr: Long, deltaMs: Long): Int
     private external fun nativeClearCookies(enginePtr: Long)
     private external fun nativeClearStorage(enginePtr: Long)
+    private external fun nativeClearImageCache(enginePtr: Long)
     private external fun nativeGetFrameMetrics(enginePtr: Long): FloatArray?
 
     companion object {

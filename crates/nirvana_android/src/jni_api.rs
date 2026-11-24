@@ -603,6 +603,20 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeClear
     });
 }
 
+/// Clears the decoded image cache in the engine.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeClearImageCache(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) {
+    let _ = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            engine.clear_image_cache();
+        }
+    });
+}
+
 /// Retrieves high-resolution timing metrics for the most recent render frame.
 /// Returns float array: [parse_ms, style_ms, layout_ms, raster_ms, total_ms].
 #[unsafe(no_mangle)]

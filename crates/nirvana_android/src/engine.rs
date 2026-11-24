@@ -109,6 +109,20 @@ impl NirvanaEngine {
         &self.canvas.pixels
     }
 
+    /// Clears the in-memory decoded image cache, freeing bitmap buffers.
+    pub fn clear_image_cache(&mut self) {
+        self.images.clear();
+        self.images.shrink_to_fit();
+    }
+
+    /// Releases excess capacity held by internal collections.
+    pub fn shrink_to_fit(&mut self) {
+        self.images.shrink_to_fit();
+        self.stylesheets.shrink_to_fit();
+        self.external_stylesheets.shrink_to_fit();
+        self.input_buffers.shrink_to_fit();
+    }
+
     /// Returns the current loaded document URL string, if any.
     #[inline]
     pub fn current_url(&self) -> Option<&str> {
