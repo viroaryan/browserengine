@@ -12,3 +12,6 @@ workspace = true
 nirvana_core = { path = "../nirvana_core" }
 nirvana_dom = { path = "../nirvana_dom" }
 nirvana_css = { path = "../nirvana_css" }
+
+[dev-dependencies]
+nirvana_html = { path = "../nirvana_html" }
