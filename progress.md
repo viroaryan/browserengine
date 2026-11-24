@@ -5,5 +5,4 @@
 - [x] Task 2: Display List Builder (CSS 2.1 Painting Order)
 - [x] Task 3: 2D Framebuffer & Software Rasterizer (`canvas.rs`)
 - [x] Task 4: PNG Export & End-to-End Visual Integration Test
-- [ ] Whole-Branch Review & Verification
-- [ ] Whole-Branch Review & Verification
+- [x] Whole-Branch Review & Verification (Approved by Reviewer)
