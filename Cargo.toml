@@ -9,6 +9,7 @@ members = [
     "crates/nirvana_layout",
     "crates/nirvana_gfx",
     "crates/nirvana_android",
+    "crates/nirvana_font",
 ]
 resolver = "2"
 

@@ -1,0 +1,13 @@
+[package]
+name = "nirvana_font"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fontdue = "0.9.5"
+nirvana_core = { path = "../nirvana_core" }
