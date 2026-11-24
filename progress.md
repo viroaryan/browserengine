@@ -1,9 +1,9 @@
-# Progress Ledger: Phase 7 - Typography & Font Rasterization Engine
+# Progress Ledger: Phase 8 - Interactive Touch, Hit-Testing & Scrolling
 
 ## Task Status
-- [x] Task 1: `nirvana_font` Crate Setup & Font Loading (`font.rs`)
-- [x] Task 2: Text Measurement & Line Metrics (`metrics.rs`)
-- [x] Task 3: Glyph Rasterization & Anti-Aliased Text Blitting (`rasterizer.rs`)
-- [x] Task 4: Layout Engine Inline Box Text Sizing (`nirvana_layout`)
-- [x] Task 5: End-to-End Visual Text Rendering Pipeline & Workspace Verification
-- [x] Whole-Branch Review & Verification (Approved by Reviewer)
+- [ ] Task 1: Viewport Scroll State & Offset Display List Rasterization (`canvas.rs` & `engine.rs`)
+- [ ] Task 2: Front-to-Back Layout Tree Hit-Testing (`hit_test.rs` in `nirvana_layout`)
+- [ ] Task 3: Hit-Test Target Information & JNI Bridge (`nirvana_android`)
+- [ ] Task 4: Android Touch Gesture & Kinetic Fling Integration (`NirvanaView.kt`)
+- [ ] Task 5: End-to-End Interactive Pipeline Test & Full Workspace Verification
+- [ ] Whole-Branch Review & Verification
