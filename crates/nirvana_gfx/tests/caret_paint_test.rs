@@ -125,3 +125,37 @@ fn test_render_text_selection_and_canvas_rasterization() {
     // Point inside caret: red
     assert_eq!(canvas.pixel_at(60, 15), Rgba::new(255, 0, 0, 255));
 }
+
+#[test]
+fn test_button_text_not_double_painted_at_origin() {
+    let html = "<html><body><button>Click Me</button></body></html>";
+    let dom = parse_html(html);
+    let ua_sheet = nirvana_style::user_agent::user_agent_stylesheet();
+    let style_tree = compute_styles(&dom, &[ua_sheet]);
+    let layout_root = layout_document(&dom, &style_tree, Size::new(800.0, 600.0)).unwrap();
+
+    let display_list = build_display_list_full(
+        &layout_root,
+        &style_tree,
+        &dom,
+        &ImageMap::new(),
+        &FormState::default(),
+    );
+
+    // Filter text commands matching "Click Me"
+    let text_cmds: Vec<&DisplayCommand> = display_list
+        .commands
+        .iter()
+        .filter(|cmd| matches!(cmd, DisplayCommand::Text { text, .. } if text == "Click Me"))
+        .collect();
+
+    // Exactly one Text command should be emitted, never two
+    assert_eq!(text_cmds.len(), 1, "Button text should be emitted exactly once");
+
+    // No text should be emitted at coordinate (0, 0)
+    for cmd in &display_list.commands {
+        if let DisplayCommand::Text { origin, .. } = cmd {
+            assert_ne!((origin.x, origin.y), (0.0, 0.0), "Text should not be emitted at (0, 0)");
+        }
+    }
+}

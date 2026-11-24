@@ -175,8 +175,8 @@ fn render_layout_box(
                 if start != end {
                     let pre_str: String = display_text.chars().take(start).collect();
                     let sel_str: String = display_text.chars().skip(start).take(end - start).collect();
-                    let sel_x = layout_box.dimensions.content.origin.x + font.measure_text(&pre_str, 14.0).width;
-                    let sel_w = font.measure_text(&sel_str, 14.0).width;
+                    let sel_x = layout_box.dimensions.content.origin.x + font.measure_text(&pre_str, 16.0).width;
+                    let sel_w = font.measure_text(&sel_str, 16.0).width;
                     list.push(DisplayCommand::TextSelection {
                         rect: Rect::new(sel_x, layout_box.dimensions.content.origin.y, sel_w, layout_box.dimensions.content.height()),
                         color: Rgba::new(180, 215, 255, 128),
@@ -205,7 +205,7 @@ fn render_layout_box(
             if is_focused && !is_button {
                 let bounded_idx = cursor_idx.min(display_text.chars().count());
                 let prefix: String = display_text.chars().take(bounded_idx).collect();
-                let caret_x = layout_box.dimensions.content.origin.x + font.measure_text(&prefix, 14.0).width;
+                let caret_x = layout_box.dimensions.content.origin.x + font.measure_text(&prefix, 16.0).width;
                 let caret_y = layout_box.dimensions.content.origin.y + 2.0;
                 let caret_h = (layout_box.dimensions.content.height() - 4.0).max(14.0);
 
@@ -247,7 +247,9 @@ fn render_layout_box(
     // 6. Paint children recursively in tree order (skip replaced form controls)
     let is_replaced_form = layout_box.node_id().is_some_and(|id| {
         dom.tag_name(id).is_some_and(|t| {
-            t.eq_ignore_ascii_case("input") || t.eq_ignore_ascii_case("textarea")
+            t.eq_ignore_ascii_case("input")
+                || t.eq_ignore_ascii_case("textarea")
+                || t.eq_ignore_ascii_case("button")
         })
     });
     if !is_replaced_form {

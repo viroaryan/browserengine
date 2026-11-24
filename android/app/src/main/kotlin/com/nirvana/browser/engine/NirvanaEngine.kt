@@ -203,6 +203,13 @@ class NirvanaEngine(
             return nativeGetFocusedText(nativePtr)
         }
 
+    /** Screen bounds [x, y, width, height] of the currently focused element, or null if none. */
+    val focusedBounds: FloatArray?
+        @Synchronized get() {
+            checkOpen()
+            return nativeGetFocusedBounds(nativePtr)
+        }
+
     /** Removes focus from any focused element. */
     @Synchronized
     fun blur() {

@@ -388,11 +388,20 @@ impl NirvanaEngine {
                 };
 
                 let text = self.get_input_state(result.node_id).0;
+                let is_password = self.dom.as_ref().is_some_and(|d| {
+                    d.get_attribute(result.node_id, "type")
+                        .is_some_and(|t| t.eq_ignore_ascii_case("password"))
+                });
                 let font = nirvana_font::Font::default_font();
                 let mut cursor_idx = text.chars().count();
                 let mut accum = 0.0;
                 for (i, c) in text.chars().enumerate() {
-                    let w = font.measure_text(&c.to_string(), 14.0).width;
+                    let char_repr = if is_password {
+                        "•".to_string()
+                    } else {
+                        c.to_string()
+                    };
+                    let w = font.measure_text(&char_repr, 16.0).width;
                     if rel_x < accum + (w / 2.0) {
                         cursor_idx = i;
                         break;

@@ -99,3 +99,16 @@ fn test_engine_focused_bounds_with_scrolling() {
     // Screen bounds y should shift up by 40px: 100 - 40 = 60
     assert_eq!(bounds2.y(), 60.0);
 }
+
+#[test]
+fn test_password_tap_measures_masked_bullets() {
+    let mut engine = NirvanaEngine::new(400, 300);
+    let html = r#"<input type="password" value="WWWWWW">"#;
+    engine.load_html(html, None);
+    engine.render();
+
+    // Tap inside password field
+    engine.handle_click(5.0, 10.0);
+    assert!(engine.is_input_focused());
+    assert_eq!(engine.focused_text().as_deref(), Some("WWWWWW"));
+}

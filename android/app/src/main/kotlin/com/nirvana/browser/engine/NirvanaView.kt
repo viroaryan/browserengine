@@ -108,11 +108,12 @@ class NirvanaView @JvmOverloads constructor(
             }
 
             override fun onSingleTapUp(e: MotionEvent): Boolean {
+                val wasFocused = synchronized(engineLock) { engine?.isInputFocused == true }
                 val (hit, isInputFocused) = synchronized(engineLock) {
                     val eng = engine ?: return false
                     val target = eng.handleClick(e.x, e.y)
                     val focused = eng.isInputFocused
-                    if (focused) {
+                    if (wasFocused || focused) {
                         drawFrameLocked(eng)
                     }
                     Pair(target, focused)
