@@ -5,4 +5,4 @@ pub mod parser;
 pub mod token;
 pub mod tokenizer;
 
-pub use parser::parse_css;
+pub use parser::{parse_css, parse_inline_declarations};

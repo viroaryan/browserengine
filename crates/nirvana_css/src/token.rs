@@ -21,6 +21,7 @@ pub enum Token {
     Colon,
     Semicolon,
     Comma,
+    Star,
     OpenBrace,
     CloseBrace,
     Eof,

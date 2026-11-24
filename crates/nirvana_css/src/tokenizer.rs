@@ -66,78 +66,83 @@ impl<'a> CssTokenizer<'a> {
 
     /// Consumes and returns the next CSS token.
     pub fn next_token(&mut self) -> Token {
-        self.skip_whitespace_and_comments();
+        loop {
+            self.skip_whitespace_and_comments();
 
-        let ch = match self.peek_char() {
-            Some(c) => c,
-            None => return Token::Eof,
-        };
+            let ch = match self.peek_char() {
+                Some(c) => c,
+                None => return Token::Eof,
+            };
 
-        // Number check: starts with digit, or '+' / '-' / '.' followed by digit
-        if ch.is_ascii_digit()
-            || ((ch == '+' || ch == '-')
-                && self
-                    .peek_char_at(1)
-                    .is_some_and(|c| c.is_ascii_digit() || (c == '.' && self.peek_char_at(2).is_some_and(|d| d.is_ascii_digit()))))
-            || (ch == '.' && self.peek_char_at(1).is_some_and(|c| c.is_ascii_digit()))
-        {
-            return self.consume_number_or_dimension();
-        }
+            // Number check: starts with digit, or '+' / '-' / '.' followed by digit
+            if ch.is_ascii_digit()
+                || ((ch == '+' || ch == '-')
+                    && self
+                        .peek_char_at(1)
+                        .is_some_and(|c| c.is_ascii_digit() || (c == '.' && self.peek_char_at(2).is_some_and(|d| d.is_ascii_digit()))))
+                || (ch == '.' && self.peek_char_at(1).is_some_and(|c| c.is_ascii_digit()))
+            {
+                return self.consume_number_or_dimension();
+            }
 
-        match ch {
-            '{' => {
-                self.advance();
-                Token::OpenBrace
-            }
-            '}' => {
-                self.advance();
-                Token::CloseBrace
-            }
-            ':' => {
-                self.advance();
-                Token::Colon
-            }
-            ';' => {
-                self.advance();
-                Token::Semicolon
-            }
-            ',' => {
-                self.advance();
-                Token::Comma
-            }
-            '.' => {
-                self.advance();
-                Token::Dot
-            }
-            '#' => {
-                self.advance();
-                let name = self.consume_ident_chars();
-                Token::Hash(name)
-            }
-            '"' | '\'' => {
-                let quote = self.advance().unwrap();
-                let mut s = String::new();
-                while let Some(c) = self.advance() {
-                    if c == quote {
-                        break;
-                    }
-                    if c == '\\'
-                        && let Some(escaped) = self.advance()
-                    {
-                        s.push(escaped);
-                        continue;
-                    }
-                    s.push(c);
+            match ch {
+                '*' => {
+                    self.advance();
+                    return Token::Star;
                 }
-                Token::String(s)
-            }
-            _ if is_ident_start(ch) => {
-                let ident = self.consume_ident_chars();
-                Token::Ident(ident)
-            }
-            _ => {
-                self.advance();
-                self.next_token()
+                '{' => {
+                    self.advance();
+                    return Token::OpenBrace;
+                }
+                '}' => {
+                    self.advance();
+                    return Token::CloseBrace;
+                }
+                ':' => {
+                    self.advance();
+                    return Token::Colon;
+                }
+                ';' => {
+                    self.advance();
+                    return Token::Semicolon;
+                }
+                ',' => {
+                    self.advance();
+                    return Token::Comma;
+                }
+                '.' => {
+                    self.advance();
+                    return Token::Dot;
+                }
+                '#' => {
+                    self.advance();
+                    let name = self.consume_ident_chars();
+                    return Token::Hash(name);
+                }
+                '"' | '\'' => {
+                    let quote = self.advance().unwrap();
+                    let mut s = String::new();
+                    while let Some(c) = self.advance() {
+                        if c == quote {
+                            break;
+                        }
+                        if c == '\\'
+                            && let Some(escaped) = self.advance()
+                        {
+                            s.push(escaped);
+                            continue;
+                        }
+                        s.push(c);
+                    }
+                    return Token::String(s);
+                }
+                _ if is_ident_start(ch) => {
+                    let ident = self.consume_ident_chars();
+                    return Token::Ident(ident);
+                }
+                _ => {
+                    self.advance();
+                }
             }
         }
     }

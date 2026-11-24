@@ -78,3 +78,36 @@ fn test_specificity_ordering() {
     assert!(class_spec > tag_spec);
     assert!(Specificity::new(0, 1, 1) > Specificity::new(0, 1, 0));
 }
+
+#[test]
+fn test_universal_selector_parsing() {
+    let css = "* { color: #ff0000; }";
+    let stylesheet = parse_css(css);
+    assert_eq!(stylesheet.rules.len(), 1);
+
+    let rule = &stylesheet.rules[0];
+    assert_eq!(rule.selectors.len(), 1);
+    assert_eq!(rule.selectors[0].simple_selectors, vec![SimpleSelector::Universal]);
+    assert_eq!(rule.selectors[0].specificity(), Specificity::new(0, 0, 0));
+    assert_eq!(rule.get_property("color"), Some(&PropertyValue::Color(Rgba::new(255, 0, 0, 255))));
+}
+
+#[test]
+fn test_parse_inline_declarations() {
+    use nirvana_css::parser::parse_inline_declarations;
+    let decls = parse_inline_declarations("color: #00ff00; margin: 15px;");
+    assert!(decls.iter().any(|d| d.name == "color" && d.value == PropertyValue::Color(Rgba::new(0, 255, 0, 255))));
+    assert!(decls.iter().any(|d| d.name == "margin-top" && d.value == PropertyValue::Px(15.0)));
+}
+
+#[test]
+fn test_unitless_zero_vs_nonzero_length() {
+    let css = "div { margin-top: 0; margin-bottom: 20; }";
+    let stylesheet = parse_css(css);
+    let rule = &stylesheet.rules[0];
+
+    // margin-top: 0 is valid (0px)
+    assert_eq!(rule.get_property("margin-top"), Some(&PropertyValue::Px(0.0)));
+    // margin-bottom: 20 without unit is invalid in CSS lengths, must be rejected
+    assert_eq!(rule.get_property("margin-bottom"), None);
+}

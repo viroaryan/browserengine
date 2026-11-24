@@ -101,3 +101,22 @@ fn test_source_order_tiebreaker() {
     // Later rule in source order wins
     assert_eq!(style.color, Rgba::new(0, 255, 0, 255));
 }
+
+#[test]
+fn test_inline_style_overrides_id_and_class() {
+    let html = r#"<div id="main" class="box" style="color: #00ff00; margin-top: 15px;">Text</div>"#;
+    let dom = parse_html(html);
+    let css = r#"
+        #main { color: #ff0000; margin-top: 50px; }
+        .box { color: #0000ff; }
+    "#;
+    let stylesheet = parse_css(css);
+    let style_tree = compute_styles(&dom, &[&stylesheet]);
+
+    let div_id = find_first_by_tag(&dom, dom.root_id(), "div").expect("div found");
+    let style = style_tree.get_style(div_id).unwrap();
+
+    // Inline style (#00ff00) beats ID selector (#ff0000)
+    assert_eq!(style.color, Rgba::new(0, 255, 0, 255));
+    assert_eq!(style.margin_top, Length::Px(15.0));
+}

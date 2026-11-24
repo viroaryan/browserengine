@@ -5,7 +5,6 @@ use crate::user_agent::user_agent_stylesheet;
 use crate::values::{ComputedValues, Display, Length};
 use nirvana_core::arena::Id;
 use nirvana_css::ast::{Declaration, PropertyValue, Specificity, StyleSheet};
-use nirvana_css::parser::parse_css;
 use nirvana_dom::node::Node;
 use nirvana_dom::{DomTree, NodeType};
 use std::collections::HashMap;
@@ -111,12 +110,9 @@ fn compute_node_styles(
 
         // 3. Inline style attribute (Origin: 2, highest priority)
         if let Some(style_attr) = dom.get_attribute(node_id, "style") {
-            let inline_css = format!("* {{ {style_attr} }}");
-            let inline_sheet = parse_css(&inline_css);
-            for rule in &inline_sheet.rules {
-                for decl in &rule.declarations {
-                    apply_declaration(&mut computed, decl);
-                }
+            let inline_decls = nirvana_css::parse_inline_declarations(style_attr);
+            for decl in &inline_decls {
+                apply_declaration(&mut computed, decl);
             }
         }
 
@@ -161,11 +157,11 @@ fn apply_declaration(computed: &mut ComputedValues, decl: &Declaration) {
         "margin-right" => apply_length(&mut computed.margin_right, &decl.value),
         "margin-bottom" => apply_length(&mut computed.margin_bottom, &decl.value),
         "margin-left" => apply_length(&mut computed.margin_left, &decl.value),
-        "padding-top" => apply_length(&mut computed.padding_top, &decl.value),
-        "padding-right" => apply_length(&mut computed.padding_right, &decl.value),
-        "padding-bottom" => apply_length(&mut computed.padding_bottom, &decl.value),
-        "padding-left" => apply_length(&mut computed.padding_left, &decl.value),
-        "border-width" => {
+        "padding-top" => apply_padding(&mut computed.padding_top, &decl.value),
+        "padding-right" => apply_padding(&mut computed.padding_right, &decl.value),
+        "padding-bottom" => apply_padding(&mut computed.padding_bottom, &decl.value),
+        "padding-left" => apply_padding(&mut computed.padding_left, &decl.value),
+        "border" | "border-width" => {
             if let PropertyValue::Px(p) = decl.value {
                 computed.border_width = p;
             }
@@ -173,6 +169,12 @@ fn apply_declaration(computed: &mut ComputedValues, decl: &Declaration) {
         "width" => apply_length(&mut computed.width, &decl.value),
         "height" => apply_length(&mut computed.height, &decl.value),
         _ => {}
+    }
+}
+
+fn apply_padding(target: &mut Length, value: &PropertyValue) {
+    if let PropertyValue::Px(p) = value {
+        *target = Length::Px(*p);
     }
 }
 

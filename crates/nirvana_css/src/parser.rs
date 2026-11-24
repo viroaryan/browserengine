@@ -13,6 +13,14 @@ pub fn parse_css(input: &str) -> StyleSheet {
     parser.parse_stylesheet()
 }
 
+/// Parses inline CSS declarations directly (e.g. from an HTML `style` attribute).
+pub fn parse_inline_declarations(input: &str) -> Vec<Declaration> {
+    let mut tokenizer = CssTokenizer::new(input);
+    let tokens = tokenizer.tokenize_all();
+    let mut parser = CssParser::new(tokens);
+    parser.parse_declarations()
+}
+
 struct CssParser {
     tokens: Vec<Token>,
     pos: usize,
@@ -77,8 +85,11 @@ impl CssParser {
         let mut selectors = Vec::new();
         let mut current_simple = Vec::new();
 
-        while !matches!(self.peek(), Token::OpenBrace | Token::Eof) {
+        while !matches!(self.peek(), Token::OpenBrace | Token::Semicolon | Token::Eof) {
             match self.advance() {
+                Token::Star => {
+                    current_simple.push(SimpleSelector::Universal);
+                }
                 Token::Ident(tag) => {
                     current_simple.push(SimpleSelector::Tag(tag.to_ascii_lowercase()));
                 }
@@ -260,7 +271,8 @@ impl CssParser {
     fn token_to_property_value(tok: &Token) -> Option<PropertyValue> {
         match tok {
             Token::Dimension(val, DimensionUnit::Px) => Some(PropertyValue::Px(*val)),
-            Token::Number(val) => Some(PropertyValue::Px(*val)),
+            Token::Number(val) if *val == 0.0 => Some(PropertyValue::Px(0.0)),
+            Token::Number(_) => None,
             Token::Hash(hex) => {
                 let formatted = format!("#{hex}");
                 Rgba::from_hex(&formatted).ok().map(PropertyValue::Color)
