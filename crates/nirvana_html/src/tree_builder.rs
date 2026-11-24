@@ -9,6 +9,10 @@ const VOID_ELEMENTS: &[&str] = &[
     "source", "track", "wbr",
 ];
 
+/// Maximum depth of nested open elements permitted in DOM tree construction (512 levels).
+/// Prevents thread stack exhaustion on adversarial documents.
+pub const MAX_TREE_DEPTH: usize = 512;
+
 pub struct TreeBuilder {
     tokens: Vec<Token>,
     tree: DomTree,
@@ -16,6 +20,7 @@ pub struct TreeBuilder {
     has_html: bool,
     has_body: bool,
     text_buffer: String,
+    excess_depth: usize,
 }
 
 impl TreeBuilder {
@@ -27,6 +32,7 @@ impl TreeBuilder {
             has_html: false,
             has_body: false,
             text_buffer: String::new(),
+            excess_depth: 0,
         }
     }
 
@@ -106,6 +112,13 @@ impl TreeBuilder {
                 }
 
                 Token::StartTag(tag) => {
+                    if self.excess_depth > 0 {
+                        if !Self::is_void(&tag.name) && !tag.self_closing {
+                            self.excess_depth += 1;
+                        }
+                        continue;
+                    }
+
                     self.flush_text();
 
                     if tag.name == "html" {
@@ -188,6 +201,13 @@ impl TreeBuilder {
 
                     self.ensure_html_and_body(&tag.name);
 
+                    if self.open_elements.len() >= MAX_TREE_DEPTH {
+                        if !Self::is_void(&tag.name) && !tag.self_closing {
+                            self.excess_depth += 1;
+                        }
+                        continue;
+                    }
+
                     let elem = self.tree.create_element(&tag.name);
                     for (k, v) in &tag.attributes {
                         let _ = self.tree.set_attribute(elem, k, v);
@@ -202,6 +222,11 @@ impl TreeBuilder {
                 }
 
                 Token::EndTag(tag) => {
+                    if self.excess_depth > 0 {
+                        self.excess_depth -= 1;
+                        continue;
+                    }
+
                     self.flush_text();
 
                     // Find matching open element in stack from the top
@@ -219,6 +244,9 @@ impl TreeBuilder {
                 }
 
                 Token::Character(c) => {
+                    if self.excess_depth > 0 {
+                        continue;
+                    }
                     // WHATWG: Ignore whitespace characters if not inside body or text-bearing element
                     if c.is_whitespace() {
                         let curr = self.current_node();
@@ -236,6 +264,9 @@ impl TreeBuilder {
                 }
 
                 Token::Comment(comment) => {
+                    if self.excess_depth > 0 {
+                        continue;
+                    }
                     self.flush_text();
                     let comment_node = self.tree.create_comment(&comment);
                     let parent = self.current_node();
@@ -244,6 +275,7 @@ impl TreeBuilder {
 
                 Token::Eof => {
                     self.flush_text();
+                    self.excess_depth = 0;
                     self.open_elements.clear();
                 }
             }

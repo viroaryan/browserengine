@@ -51,6 +51,8 @@ pub struct NirvanaEngine {
 impl NirvanaEngine {
     /// Creates a new `NirvanaEngine` instance with given viewport dimensions.
     pub fn new(width: u32, height: u32) -> Self {
+        let width = width.clamp(1, 16384);
+        let height = height.clamp(1, 16384);
         Self {
             width,
             height,
@@ -292,6 +294,8 @@ impl NirvanaEngine {
     /// Resizes the viewport and framebuffer canvas.
     /// Re-renders existing document if one is loaded.
     pub fn resize(&mut self, width: u32, height: u32) {
+        let width = width.clamp(1, 16384);
+        let height = height.clamp(1, 16384);
         if self.width == width && self.height == height {
             return;
         }

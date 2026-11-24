@@ -69,6 +69,11 @@ impl std::fmt::Display for ImageError {
 
 impl std::error::Error for ImageError {}
 
+/// Maximum supported width and height for decoded images (8192px).
+pub const MAX_IMAGE_DIMENSION: u32 = 8192;
+/// Maximum uncompressed image buffer size (64 MiB).
+pub const MAX_IMAGE_BUFFER_BYTES: usize = 64 * 1024 * 1024;
+
 /// Decodes raw image bytes (PNG, JPEG) into an RGBA8 `DecodedImage`.
 pub fn decode_image(bytes: &[u8]) -> Result<DecodedImage, ImageError> {
     if bytes.is_empty() {
@@ -80,7 +85,14 @@ pub fn decode_image(bytes: &[u8]) -> Result<DecodedImage, ImageError> {
 
     let rgba = dyn_img.to_rgba8();
     let (width, height) = rgba.dimensions();
-    if width == 0 || height == 0 {
+    if width == 0 || height == 0 || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
+        return Err(ImageError::InvalidDimensions);
+    }
+
+    let required_bytes = (width as usize)
+        .saturating_mul(height as usize)
+        .saturating_mul(4);
+    if required_bytes > MAX_IMAGE_BUFFER_BYTES {
         return Err(ImageError::InvalidDimensions);
     }
 
