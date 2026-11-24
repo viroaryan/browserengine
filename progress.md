@@ -53,4 +53,16 @@
 ---
 **Phase 11 Status:** COMPLETED & SIGNED OFF. All tests passing (11/11 crates), 0 clippy warnings.
 
+# Progress Ledger: Phase 12 - JavaScript Runtime Integration & Sovereign DOM Bindings
+
+## Task Status
+- [ ] Task 1: `crates/nirvana_js` Scaffolding & Pure-Rust JS Runtime Core (`boa_engine`)
+- [ ] Task 2: Sovereign DOM Element Object & Document Bindings
+- [ ] Task 3: DOM Events & Event Listeners (`addEventListener`, `dispatchEvent`)
+- [ ] Task 4: Timers & Event Loop (`setTimeout`, `clearTimeout`)
+- [ ] Task 5: Engine `<script>` Lifecycle, DOM Events & JNI Integration (`nirvana_android`)
+- [ ] Task 6: End-to-End Dynamic Web App Test & Full Workspace Verification
+- [ ] Whole-Branch Review & Verification
+
+
 
