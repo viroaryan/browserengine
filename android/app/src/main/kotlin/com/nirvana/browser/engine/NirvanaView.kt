@@ -59,6 +59,8 @@ class NirvanaView @JvmOverloads constructor(
 
     init {
         holder.addCallback(this)
+        isFocusable = true
+        isFocusableInTouchMode = true
 
         val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean {
@@ -106,9 +108,24 @@ class NirvanaView @JvmOverloads constructor(
             }
 
             override fun onSingleTapUp(e: MotionEvent): Boolean {
-                val hit = synchronized(engineLock) {
-                    engine?.hitTest(e.x, e.y)
+                val (hit, isInputFocused) = synchronized(engineLock) {
+                    val eng = engine ?: return false
+                    val target = eng.handleClick(e.x, e.y)
+                    val focused = eng.isInputFocused
+                    if (focused) {
+                        drawFrameLocked(eng)
+                    }
+                    Pair(target, focused)
                 }
+
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                if (isInputFocused) {
+                    requestFocus()
+                    imm?.showSoftInput(this@NirvanaView, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                } else {
+                    imm?.hideSoftInputFromWindow(windowToken, 0)
+                }
+
                 if (hit != null && !hit.href.isNullOrEmpty()) {
                     val href = hit.href
                     if (onLinkClickListener != null) {
@@ -123,6 +140,59 @@ class NirvanaView @JvmOverloads constructor(
         }
 
         gestureDetector = GestureDetector(context, gestureListener)
+    }
+
+    override fun onCreateInputConnection(outAttrs: android.view.inputmethod.EditorInfo): android.view.inputmethod.InputConnection? {
+        outAttrs.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_NORMAL
+        outAttrs.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+
+        return object : android.view.inputmethod.BaseInputConnection(this, true) {
+            override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                if (!text.isNullOrEmpty()) {
+                    synchronized(engineLock) {
+                        val eng = engine ?: return false
+                        eng.insertText(text.toString())
+                        drawFrameLocked(eng)
+                    }
+                }
+                return true
+            }
+
+            override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+                if (beforeLength > 0) {
+                    synchronized(engineLock) {
+                        val eng = engine ?: return false
+                        repeat(beforeLength) {
+                            eng.deleteBackward()
+                        }
+                        drawFrameLocked(eng)
+                    }
+                }
+                return true
+            }
+
+            override fun sendKeyEvent(event: android.view.KeyEvent): Boolean {
+                if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                    if (event.keyCode == android.view.KeyEvent.KEYCODE_DEL) {
+                        synchronized(engineLock) {
+                            val eng = engine ?: return false
+                            eng.deleteBackward()
+                            drawFrameLocked(eng)
+                        }
+                        return true
+                    } else if (event.unicodeChar != 0) {
+                        val charStr = event.unicodeChar.toChar().toString()
+                        synchronized(engineLock) {
+                            val eng = engine ?: return false
+                            eng.insertText(charStr)
+                            drawFrameLocked(eng)
+                        }
+                        return true
+                    }
+                }
+                return super.sendKeyEvent(event)
+            }
+        }
     }
 
     /**

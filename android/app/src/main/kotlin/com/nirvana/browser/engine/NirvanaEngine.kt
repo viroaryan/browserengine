@@ -161,6 +161,55 @@ class NirvanaEngine(
         return parseHitTargetJson(json)
     }
 
+    /**
+     * Handles a click or tap at (screenX, screenY).
+     * If an interactive form control (<input> or <textarea>) is clicked,
+     * focuses it, positions the caret, and returns the HitTarget.
+     * If a non-input is clicked, blurs.
+     */
+    @Synchronized
+    fun handleClick(screenX: Float, screenY: Float): HitTarget? {
+        checkOpen()
+        val json = nativeHandleClick(nativePtr, screenX, screenY) ?: return null
+        if (json.isEmpty()) return null
+        return parseHitTargetJson(json)
+    }
+
+    /** Returns true if an <input> or <textarea> element currently has focus. */
+    val isInputFocused: Boolean
+        @Synchronized get() {
+            checkOpen()
+            return nativeIsInputFocused(nativePtr)
+        }
+
+    /** Inserts text at the current caret position of the focused form control. */
+    @Synchronized
+    fun insertText(text: String) {
+        checkOpen()
+        nativeInsertText(nativePtr, text)
+    }
+
+    /** Deletes the character before the caret in the focused form control. */
+    @Synchronized
+    fun deleteBackward() {
+        checkOpen()
+        nativeDeleteBackward(nativePtr)
+    }
+
+    /** Text of the currently focused element, or null if none. */
+    val focusedText: String?
+        @Synchronized get() {
+            checkOpen()
+            return nativeGetFocusedText(nativePtr)
+        }
+
+    /** Removes focus from any focused element. */
+    @Synchronized
+    fun blur() {
+        checkOpen()
+        nativeBlur(nativePtr)
+    }
+
     private fun parseHitTargetJson(json: String): HitTarget? {
         val tagMatch = Regex("\"tag\"\\s*:\\s*\"([^\"]*)\"").find(json) ?: return null
         val tag = tagMatch.groupValues[1]
@@ -206,6 +255,13 @@ class NirvanaEngine(
     private external fun nativeGetScrollY(enginePtr: Long): Float
     private external fun nativeGetMaxScrollY(enginePtr: Long): Float
     private external fun nativeHitTest(enginePtr: Long, x: Float, y: Float): String?
+    private external fun nativeHandleClick(enginePtr: Long, x: Float, y: Float): String?
+    private external fun nativeIsInputFocused(enginePtr: Long): Boolean
+    private external fun nativeInsertText(enginePtr: Long, text: String)
+    private external fun nativeDeleteBackward(enginePtr: Long)
+    private external fun nativeGetFocusedText(enginePtr: Long): String?
+    private external fun nativeGetFocusedBounds(enginePtr: Long): FloatArray?
+    private external fun nativeBlur(enginePtr: Long)
     private external fun nativeNavigate(enginePtr: Long, url: String): Boolean
     private external fun nativeGetCurrentUrl(enginePtr: Long): String?
 
