@@ -21,6 +21,7 @@ pub fn build_layout_tree(dom: &DomTree, style_tree: &StyleTree) -> Option<Layout
 
 fn build_box(node_id: Id<Node>, dom: &DomTree, style_tree: &StyleTree) -> Option<LayoutBox> {
     let node_type = dom.node_type(node_id)?;
+    let mut initial_size = None;
 
     let box_type = match node_type {
         NodeType::Element => {
@@ -35,8 +36,14 @@ fn build_box(node_id: Id<Node>, dom: &DomTree, style_tree: &StyleTree) -> Option
             // Check if text is non-empty / meaningful
             if let Some(node) = dom.get_node(node_id)
                 && let NodeData::Text(ref text) = node.data
-                && text.trim().is_empty()
             {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    return None;
+                }
+                let metrics = nirvana_font::Font::default_font().measure_text(trimmed, 16.0);
+                initial_size = Some(nirvana_core::geometry::Size::new(metrics.width, metrics.line_height));
+            } else {
                 return None;
             }
             BoxType::InlineNode(node_id)
@@ -85,6 +92,9 @@ fn build_box(node_id: Id<Node>, dom: &DomTree, style_tree: &StyleTree) -> Option
     };
 
     let mut layout_box = LayoutBox::new(box_type);
+    if let Some(size) = initial_size {
+        layout_box.dimensions.content.size = size;
+    }
     layout_box.children = final_children;
     Some(layout_box)
 }

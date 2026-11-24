@@ -6,4 +6,4 @@ pub mod rasterizer;
 
 pub use font::Font;
 pub use metrics::TextMetrics;
-pub use rasterizer::{draw_text, GlyphBitmap};
+pub use rasterizer::GlyphBitmap;

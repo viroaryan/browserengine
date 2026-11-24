@@ -11,4 +11,3 @@ workspace = true
 [dependencies]
 fontdue = "0.9.5"
 nirvana_core = { path = "../nirvana_core" }
-nirvana_gfx = { path = "../nirvana_gfx" }

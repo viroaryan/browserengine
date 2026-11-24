@@ -12,6 +12,7 @@ workspace = true
 nirvana_core = { path = "../nirvana_core" }
 nirvana_dom = { path = "../nirvana_dom" }
 nirvana_style = { path = "../nirvana_style" }
+nirvana_font = { path = "../nirvana_font" }
 
 [dev-dependencies]
 nirvana_html = { path = "../nirvana_html" }
