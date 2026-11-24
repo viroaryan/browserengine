@@ -677,18 +677,18 @@ impl NirvanaEngine {
                             continue;
                         }
                     };
-                    if resp.status >= 200 && resp.status < 300 {
-                        if let Ok(script_code) = resp.text() {
-                            if let Err(e) = js.eval(script_code) {
-                                eprintln!("JS execution error in external script {script_url}: {e}");
-                            }
-                        }
+                    if resp.status >= 200
+                        && resp.status < 300
+                        && let Ok(script_code) = resp.text()
+                        && let Err(e) = js.eval(script_code)
+                    {
+                        eprintln!("JS execution error in external script {script_url}: {e}");
                     }
                 }
-            } else if let Some(code) = content_opt {
-                if let Err(e) = js.eval(&code) {
-                    eprintln!("JS execution error in inline script: {e}");
-                }
+            } else if let Some(code) = content_opt
+                && let Err(e) = js.eval(&code)
+            {
+                eprintln!("JS execution error in inline script: {e}");
             }
         }
     }

@@ -55,10 +55,10 @@ fn test_engine_script_modifies_style_and_layout() {
         .find(|&n| dom.get_attribute(n, "id") == Some("box"))
         .expect("box element exists");
 
-    fn find_box<'a>(
-        b: &'a nirvana_layout::LayoutBox,
+    fn find_box(
+        b: &nirvana_layout::LayoutBox,
         id: nirvana_dom::NodeId,
-    ) -> Option<&'a nirvana_layout::LayoutBox> {
+    ) -> Option<&nirvana_layout::LayoutBox> {
         if b.node_id() == Some(id) {
             return Some(b);
         }
