@@ -7,6 +7,8 @@ use nirvana_dom::{DomTree, NodeType};
 /// Result of a hit-test operation identifying the topmost interactive or structural target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HitTestResult {
+    /// DOM NodeId of the target element.
+    pub node_id: Id<Node>,
     /// Tag name of the element (e.g. "a", "div", "button", "p").
     pub tag: String,
     /// Destination URL if the clicked element or any of its ancestors is an anchor link (`<a>`).
@@ -49,6 +51,7 @@ pub fn resolve_hit_target(dom: &DomTree, hit_node_id: Id<Node>) -> HitTestResult
             Some(text_content)
         };
         HitTestResult {
+            node_id: anchor_id,
             tag: "a".to_string(),
             href,
             text,
@@ -62,9 +65,15 @@ pub fn resolve_hit_target(dom: &DomTree, hit_node_id: Id<Node>) -> HitTestResult
         } else {
             Some(text_content)
         };
-        HitTestResult { tag, href, text }
+        HitTestResult {
+            node_id: elem_id,
+            tag,
+            href,
+            text,
+        }
     } else {
         HitTestResult {
+            node_id: hit_node_id,
             tag: "div".to_string(),
             href: None,
             text: None,

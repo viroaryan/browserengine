@@ -1,12 +1,12 @@
 //! Core browser engine state machine for Android embedding.
 
 use crate::hit_test::{resolve_hit_target, HitTestResult};
-use nirvana_core::geometry::{Point, Size};
+use nirvana_core::geometry::{Point, Rect, Size};
 use nirvana_css::ast::StyleSheet;
 use nirvana_css::parser::parse_css;
 use nirvana_dom::node::NodeData;
 use nirvana_dom::{DomTree, NodeId, NodeType};
-use nirvana_gfx::builder::build_display_list_with_images;
+use nirvana_gfx::builder::{build_display_list_full, FormState};
 use nirvana_gfx::canvas::Canvas;
 use nirvana_gfx::display_list::DisplayList;
 use nirvana_gfx::image::{decode_image, ImageMap};
@@ -17,6 +17,7 @@ use nirvana_layout::tree_builder::LayoutContext;
 use nirvana_net::loader::ResourceLoader;
 use nirvana_style::compute::{compute_styles, StyleTree};
 use nirvana_url::Url;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Orchestrates HTML parsing, CSS style computation, layout geometry,
@@ -36,6 +37,8 @@ pub struct NirvanaEngine {
     loader: ResourceLoader,
     current_url: Option<String>,
     images: ImageMap,
+    focused_element: Option<NodeId>,
+    input_buffers: HashMap<NodeId, (String, usize, Option<(usize, usize)>)>,
 }
 
 impl NirvanaEngine {
@@ -55,6 +58,8 @@ impl NirvanaEngine {
             loader: ResourceLoader::new(),
             current_url: None,
             images: ImageMap::new(),
+            focused_element: None,
+            input_buffers: HashMap::new(),
         }
     }
 
@@ -87,6 +92,8 @@ impl NirvanaEngine {
         self.scroll_y = 0.0;
         self.display_list = None;
         self.current_url = None;
+        self.focused_element = None;
+        self.input_buffers.clear();
 
         if let Some(ref d) = self.dom {
             let inline_sheets = discover_inline_stylesheets(d);
@@ -163,6 +170,8 @@ impl NirvanaEngine {
         self.scroll_y = 0.0;
         self.display_list = None;
         self.current_url = Some(url_str.to_string());
+        self.focused_element = None;
+        self.input_buffers.clear();
 
         self.render();
         Ok(())
@@ -207,9 +216,19 @@ impl NirvanaEngine {
         let viewport = Size::new(self.width as f32, self.height as f32);
         let layout_root = layout_document_with_context(dom, &style_tree, viewport, &layout_ctx);
 
+        let mut form_state = FormState::default();
+        form_state.focused_node = self.focused_element;
+        form_state.inputs = self.input_buffers.clone();
+
         let mut canvas = Canvas::new(self.width, self.height);
         let display_list = if let Some(ref root) = layout_root {
-            let list = build_display_list_with_images(root, &style_tree, dom, &self.images);
+            let list = build_display_list_full(
+                root,
+                &style_tree,
+                dom,
+                &self.images,
+                &form_state,
+            );
             canvas.render_display_list_with_offset(&list, -self.scroll_x, -self.scroll_y);
             Some(list)
         } else {
@@ -347,6 +366,219 @@ impl NirvanaEngine {
         let hit_node_id = root.hit_test(Point::new(doc_x, doc_y))?;
         Some(resolve_hit_target(dom, hit_node_id))
     }
+
+    /// Handles a click/touch tap at screen coordinates (screen_x, screen_y).
+    /// If an interactive form control (<input> or <textarea>) is clicked,
+    /// sets focus on it, calculates the cursor index from the tap coordinate,
+    /// and triggers re-rendering. If a non-input element is clicked, blurs.
+    pub fn handle_click(&mut self, screen_x: f32, screen_y: f32) -> Option<HitTestResult> {
+        let hit = self.hit_test(screen_x, screen_y);
+        if let Some(ref result) = hit {
+            let is_form_input = result.tag.eq_ignore_ascii_case("input")
+                || result.tag.eq_ignore_ascii_case("textarea");
+            if is_form_input {
+                let doc_x = screen_x + self.scroll_x;
+                let rel_x = if let Some(ref root) = self.layout_root
+                    && let Some(lbox) = find_box_for_node(root, result.node_id)
+                {
+                    (doc_x - lbox.dimensions.content.origin.x).max(0.0)
+                } else {
+                    0.0
+                };
+
+                let text = self.get_input_state(result.node_id).0;
+                let font = nirvana_font::Font::default_font();
+                let mut cursor_idx = text.chars().count();
+                let mut accum = 0.0;
+                for (i, c) in text.chars().enumerate() {
+                    let w = font.measure_text(&c.to_string(), 14.0).width;
+                    if rel_x < accum + (w / 2.0) {
+                        cursor_idx = i;
+                        break;
+                    }
+                    accum += w;
+                }
+                self.focus(result.node_id, cursor_idx);
+            } else {
+                self.blur();
+            }
+        } else {
+            self.blur();
+        }
+        hit
+    }
+
+    /// Focuses the given form element and places the caret cursor at `cursor_index`.
+    pub fn focus(&mut self, node_id: NodeId, cursor_index: usize) {
+        let (text, _, sel) = self.get_input_state(node_id);
+        let clamped_cursor = cursor_index.min(text.chars().count());
+        self.input_buffers.insert(node_id, (text, clamped_cursor, sel));
+        self.focused_element = Some(node_id);
+        self.render();
+    }
+
+    /// Removes focus from currently focused element.
+    pub fn blur(&mut self) {
+        if self.focused_element.is_some() {
+            self.focused_element = None;
+            self.render();
+        }
+    }
+
+    /// Returns `true` if an <input> or <textarea> element currently has focus.
+    pub fn is_input_focused(&self) -> bool {
+        if let Some(id) = self.focused_element
+            && let Some(ref dom) = self.dom
+            && let Some(tag) = dom.tag_name(id)
+        {
+            tag.eq_ignore_ascii_case("input") || tag.eq_ignore_ascii_case("textarea")
+        } else {
+            false
+        }
+    }
+
+    /// Returns the NodeId of the currently focused element, if any.
+    pub fn focused_element(&self) -> Option<NodeId> {
+        self.focused_element
+    }
+
+    /// Returns the text content of the currently focused form element.
+    pub fn focused_text(&self) -> Option<String> {
+        let node_id = self.focused_element?;
+        Some(self.get_input_state(node_id).0)
+    }
+
+    /// Returns the viewport screen bounds of the currently focused form element.
+    pub fn focused_bounds(&self) -> Option<Rect> {
+        let node_id = self.focused_element?;
+        let root = self.layout_root.as_ref()?;
+        let lbox = find_box_for_node(root, node_id)?;
+        let border_box = lbox.dimensions.border_box();
+        Some(Rect::new(
+            border_box.x() - self.scroll_x,
+            border_box.y() - self.scroll_y,
+            border_box.width(),
+            border_box.height(),
+        ))
+    }
+
+    /// Inserts `text` into the focused form control at the current caret position,
+    /// advances the caret, syncs DOM `value`, and re-renders.
+    pub fn insert_text(&mut self, text: &str) {
+        let Some(node_id) = self.focused_element else {
+            return;
+        };
+
+        let (mut curr_text, mut cursor_idx, _sel) = self.get_input_state(node_id);
+
+        let char_count = curr_text.chars().count();
+        cursor_idx = cursor_idx.min(char_count);
+
+        let byte_pos = curr_text
+            .char_indices()
+            .map(|(idx, _)| idx)
+            .nth(cursor_idx)
+            .unwrap_or(curr_text.len());
+
+        curr_text.insert_str(byte_pos, text);
+        cursor_idx += text.chars().count();
+
+        if let Some(ref mut dom) = self.dom {
+            let _ = dom.set_attribute(node_id, "value", &curr_text);
+        }
+
+        self.input_buffers.insert(node_id, (curr_text, cursor_idx, None));
+        self.render();
+    }
+
+    /// Deletes the character preceding the caret in the focused form control,
+    /// decrements the caret, syncs DOM `value`, and re-renders.
+    pub fn delete_backward(&mut self) {
+        let Some(node_id) = self.focused_element else {
+            return;
+        };
+
+        let (mut curr_text, mut cursor_idx, _sel) = self.get_input_state(node_id);
+
+        if cursor_idx == 0 || curr_text.is_empty() {
+            return;
+        }
+
+        let char_count = curr_text.chars().count();
+        cursor_idx = cursor_idx.min(char_count);
+
+        let char_to_delete = cursor_idx - 1;
+        let byte_start = curr_text
+            .char_indices()
+            .map(|(idx, _)| idx)
+            .nth(char_to_delete)
+            .unwrap_or(0);
+        let byte_end = curr_text
+            .char_indices()
+            .map(|(idx, _)| idx)
+            .nth(cursor_idx)
+            .unwrap_or(curr_text.len());
+
+        curr_text.replace_range(byte_start..byte_end, "");
+        cursor_idx -= 1;
+
+        if let Some(ref mut dom) = self.dom {
+            let _ = dom.set_attribute(node_id, "value", &curr_text);
+        }
+
+        self.input_buffers.insert(node_id, (curr_text, cursor_idx, None));
+        self.render();
+    }
+
+    /// Sets the caret cursor position in the focused form control.
+    pub fn set_cursor_index(&mut self, index: usize) {
+        let Some(node_id) = self.focused_element else {
+            return;
+        };
+        let (text, _, sel) = self.get_input_state(node_id);
+        let clamped = index.min(text.chars().count());
+        self.input_buffers.insert(node_id, (text, clamped, sel));
+        self.render();
+    }
+
+    /// Sets the text selection range in the focused form control.
+    pub fn set_selection(&mut self, start: usize, end: usize) {
+        let Some(node_id) = self.focused_element else {
+            return;
+        };
+        let (text, cursor, _) = self.get_input_state(node_id);
+        let max_len = text.chars().count();
+        let s = start.min(max_len);
+        let e = end.min(max_len);
+        self.input_buffers.insert(node_id, (text, cursor, Some((s, e))));
+        self.render();
+    }
+
+    fn get_input_state(&self, node_id: NodeId) -> (String, usize, Option<(usize, usize)>) {
+        if let Some(state) = self.input_buffers.get(&node_id) {
+            state.clone()
+        } else if let Some(ref dom) = self.dom {
+            if let Some(val) = dom.get_attribute(node_id, "value") {
+                (val.to_string(), val.chars().count(), None)
+            } else {
+                (String::new(), 0, None)
+            }
+        } else {
+            (String::new(), 0, None)
+        }
+    }
+}
+
+fn find_box_for_node<'a>(layout_box: &'a LayoutBox, target_id: NodeId) -> Option<&'a LayoutBox> {
+    if layout_box.node_id() == Some(target_id) {
+        return Some(layout_box);
+    }
+    for child in &layout_box.children {
+        if let Some(found) = find_box_for_node(child, target_id) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn calculate_content_extent(layout_box: &LayoutBox) -> (f32, f32) {

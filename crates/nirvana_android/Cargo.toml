@@ -21,6 +21,7 @@ nirvana_css = { path = "../nirvana_css" }
 nirvana_style = { path = "../nirvana_style" }
 nirvana_layout = { path = "../nirvana_layout" }
 nirvana_gfx = { path = "../nirvana_gfx" }
+nirvana_font = { path = "../nirvana_font" }
 nirvana_net = { path = "../nirvana_net" }
 jni = { version = "0.21.1", default-features = false }
 
