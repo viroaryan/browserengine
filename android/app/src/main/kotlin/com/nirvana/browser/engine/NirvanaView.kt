@@ -10,13 +10,12 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.widget.OverScroller
+import java.net.URL
 import java.nio.ByteBuffer
 
 /**
- * Custom Android SurfaceView hosting the Nirvana Browser Engine.
- * Automatically synchronizes surface size changes and renders directly onto the surface canvas
- * using zero-allocation direct byte buffers.
- * Supports smooth touch pan dragging, kinetic OverScroller fling inertia, and link navigation.
+ * Custom Android SurfaceView hosting the Sovereign Rust Nirvana Browser Engine.
+ * Supports high-DPI scaling, logical-unit smooth panning & fling inertia, IME text input, and link navigation.
  */
 class NirvanaView @JvmOverloads constructor(
     context: Context,
@@ -24,23 +23,31 @@ class NirvanaView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : SurfaceView(context, attrs, defStyleAttr), SurfaceHolder.Callback {
 
-    /**
-     * Listener callback invoked when the user taps on an anchor link.
-     */
     fun interface OnLinkClickListener {
         fun onLinkClick(url: String)
     }
 
     private val engineLock = Any()
     private var _engine: NirvanaEngine? = null
+    @Volatile
+    private var hasLoadedContent: Boolean = false
 
-    /**
-     * Exposes the active or initialized NirvanaEngine instance.
-     */
+    /** Multiplier on display density (controlled by Settings -> Text & Display Zoom). */
+    var userZoomFactor: Float = 1.0f
+        set(value) {
+            field = value.coerceIn(0.5f, 2.5f)
+            synchronized(engineLock) {
+                val eng = _engine ?: return
+                eng.setScale(resources.displayMetrics.density * field)
+                drawFrameLocked(eng)
+            }
+        }
+
+    /** Exposes the active or initialized NirvanaEngine instance. */
     val engine: NirvanaEngine
         get() = synchronized(engineLock) {
             _engine ?: NirvanaEngine(width.coerceAtLeast(1080), height.coerceAtLeast(1920)).also {
-                it.loadHtml(currentHtml, currentCss)
+                it.setScale(resources.displayMetrics.density * userZoomFactor)
                 _engine = it
             }
         }
@@ -50,9 +57,6 @@ class NirvanaView @JvmOverloads constructor(
     private var currentHtml: String = "<html><body><h1>Nirvana Browser</h1></body></html>"
     private var currentCss: String = ""
 
-    /**
-     * Callback invoked when the user taps on an anchor link.
-     */
     var onLinkClickListener: ((String) -> Unit)? = null
     private val networkExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var activeNavigationFuture: java.util.concurrent.Future<*>? = null
@@ -65,7 +69,8 @@ class NirvanaView @JvmOverloads constructor(
             if (scroller.computeScrollOffset()) {
                 synchronized(engineLock) {
                     val eng = _engine ?: return
-                    eng.scrollTo(scroller.currX.toFloat(), scroller.currY.toFloat())
+                    val s = eng.scale.coerceAtLeast(1f)
+                    eng.scrollTo(scroller.currX / s, scroller.currY / s)
                     drawFrameLocked(eng)
                 }
                 postOnAnimation(this)
@@ -95,7 +100,8 @@ class NirvanaView @JvmOverloads constructor(
             ): Boolean {
                 synchronized(engineLock) {
                     val eng = _engine ?: return false
-                    eng.scrollBy(distanceX, distanceY)
+                    val s = eng.scale.coerceAtLeast(1f)
+                    eng.scrollBy(distanceX / s, distanceY / s)
                     drawFrameLocked(eng)
                 }
                 return true
@@ -109,7 +115,8 @@ class NirvanaView @JvmOverloads constructor(
             ): Boolean {
                 val (startX, startY, maxY) = synchronized(engineLock) {
                     val eng = _engine ?: return false
-                    Triple(eng.scrollX.toInt(), eng.scrollY.toInt(), eng.maxScrollY.toInt())
+                    val s = eng.scale.coerceAtLeast(1f)
+                    Triple((eng.scrollX * s).toInt(), (eng.scrollY * s).toInt(), (eng.maxScrollY * s).toInt())
                 }
 
                 scroller.abortAnimation()
@@ -125,14 +132,14 @@ class NirvanaView @JvmOverloads constructor(
 
             override fun onSingleTapUp(e: MotionEvent): Boolean {
                 val wasFocused = synchronized(engineLock) { _engine?.isInputFocused == true }
-                val (hit, isInputFocused) = synchronized(engineLock) {
+                val (hit, isInputFocused, baseHref) = synchronized(engineLock) {
                     val eng = _engine ?: return false
                     val target = eng.handleClick(e.x, e.y)
                     val focused = eng.isInputFocused
                     if (wasFocused || focused) {
                         drawFrameLocked(eng)
                     }
-                    Pair(target, focused)
+                    Triple(target, focused, eng.currentUrl)
                 }
 
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
@@ -140,16 +147,17 @@ class NirvanaView @JvmOverloads constructor(
                     requestFocus()
                     imm?.showSoftInput(this@NirvanaView, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
                 } else {
+                    requestFocus()
                     imm?.hideSoftInputFromWindow(windowToken, 0)
                 }
 
                 if (hit != null && !hit.href.isNullOrEmpty()) {
-                    val href = hit.href
+                    val resolved = resolveUrl(baseHref, hit.href)
                     val listener = onLinkClickListener
                     if (listener != null) {
-                        listener.invoke(href)
+                        listener.invoke(resolved)
                     } else {
-                        loadUrl(href)
+                        loadUrl(resolved)
                     }
                     return true
                 }
@@ -158,6 +166,25 @@ class NirvanaView @JvmOverloads constructor(
         }
 
         gestureDetector = GestureDetector(context, gestureListener)
+    }
+
+    private fun resolveUrl(baseUrl: String?, rawHref: String): String {
+        val cleaned = rawHref.trim()
+        if (cleaned.startsWith("http://") || cleaned.startsWith("https://") || cleaned.startsWith("data:")) {
+            return cleaned
+        }
+        if (cleaned.startsWith("//")) {
+            return "https:$cleaned"
+        }
+        return try {
+            if (!baseUrl.isNullOrBlank()) {
+                URL(URL(baseUrl), cleaned).toString()
+            } else {
+                cleaned
+            }
+        } catch (_: Exception) {
+            cleaned
+        }
     }
 
     override fun onCreateInputConnection(outAttrs: android.view.inputmethod.EditorInfo): android.view.inputmethod.InputConnection? {
@@ -189,6 +216,17 @@ class NirvanaView @JvmOverloads constructor(
                 return true
             }
 
+            override fun performEditorAction(editorAction: Int): Boolean {
+                synchronized(engineLock) {
+                    val eng = _engine ?: return false
+                    eng.blur()
+                    drawFrameLocked(eng)
+                }
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                imm?.hideSoftInputFromWindow(windowToken, 0)
+                return true
+            }
+
             override fun sendKeyEvent(event: android.view.KeyEvent): Boolean {
                 if (event.action == android.view.KeyEvent.ACTION_DOWN) {
                     if (event.keyCode == android.view.KeyEvent.KEYCODE_DEL) {
@@ -213,16 +251,10 @@ class NirvanaView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Registers a listener for user anchor link taps.
-     */
     fun setOnLinkClickListener(listener: OnLinkClickListener?) {
         this.onLinkClickListener = if (listener != null) { { url: String -> listener.onLinkClick(url) } } else null
     }
 
-    /**
-     * Requests an asynchronous render and surface redraw on the main UI thread.
-     */
     fun requestRender() {
         post {
             synchronized(engineLock) {
@@ -232,14 +264,23 @@ class NirvanaView @JvmOverloads constructor(
         }
     }
 
+    fun markContentLoaded() {
+        hasLoadedContent = true
+    }
+
     /**
-     * Loads HTML content and triggers a re-render.
+     * Loads HTML content and triggers a re-render at current DPI + user zoom scale.
      */
     fun loadHtml(html: String, css: String = "") {
         currentHtml = html
         currentCss = css
-        synchronized(engineLock) {
-            _engine?.let { eng ->
+        hasLoadedContent = true
+        post {
+            synchronized(engineLock) {
+                val eng = _engine ?: NirvanaEngine(width.coerceAtLeast(1080), height.coerceAtLeast(1920)).also {
+                    _engine = it
+                }
+                eng.setScale(resources.displayMetrics.density * userZoomFactor)
                 eng.loadHtml(html, css)
                 eng.render()
                 drawFrameLocked(eng)
@@ -247,31 +288,40 @@ class NirvanaView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Navigates to a web URL asynchronously on a background worker thread.
-     * On network completion, dispatches frame redraw back to the UI thread.
-     */
     fun loadUrl(url: String) {
-        synchronized(engineLock) {
-            if (_engine == null) {
-                val eng = NirvanaEngine(width.coerceAtLeast(1), height.coerceAtLeast(1))
-                _engine = eng
-                allocateBuffers(eng.width, eng.height)
+        hasLoadedContent = true
+        val snapPtr = synchronized(engineLock) {
+            val eng = _engine ?: NirvanaEngine(width.coerceAtLeast(1080), height.coerceAtLeast(1920)).also {
+                it.setScale(resources.displayMetrics.density * userZoomFactor)
+                _engine = it
+                allocateBuffers(it.width, it.height)
             }
+            eng.beginNavPrefetch(url)
         }
+        if (snapPtr == 0L) return
 
         activeNavigationFuture?.cancel(true)
+        val helperEngine = synchronized(engineLock) { _engine } ?: return
         activeNavigationFuture = networkExecutor.submit {
-            val eng = synchronized(engineLock) { _engine } ?: return@submit
-            if (Thread.currentThread().isInterrupted) return@submit
-
-            val success = try {
-                eng.navigate(url)
+            val resPtr = try {
+                helperEngine.executeNavPrefetch(snapPtr, url)
             } catch (e: Exception) {
-                false
+                android.util.Log.e("NirvanaView", "Navigation exception for $url", e)
+                0L
             }
+            if (resPtr == 0L) return@submit
 
-            if (success && !Thread.currentThread().isInterrupted) {
+            val shouldApply = !Thread.currentThread().isInterrupted
+            val committed = synchronized(engineLock) {
+                val eng = _engine
+                if (eng == null) {
+                    helperEngine.commitNavResult(resPtr, false)
+                    false
+                } else {
+                    eng.commitNavResult(resPtr, shouldApply)
+                }
+            }
+            if (committed) {
                 post {
                     synchronized(engineLock) {
                         val currentEng = _engine ?: return@post
@@ -287,9 +337,7 @@ class NirvanaView @JvmOverloads constructor(
         return handled || super.onTouchEvent(event)
     }
 
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        // Surface is ready; actual dimensions arrive in surfaceChanged immediately.
-    }
+    override fun surfaceCreated(holder: SurfaceHolder) {}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         val w = width.coerceAtLeast(1)
@@ -297,15 +345,20 @@ class NirvanaView @JvmOverloads constructor(
 
         synchronized(engineLock) {
             val eng = _engine ?: NirvanaEngine(w, h).also {
-                it.loadHtml(currentHtml, currentCss)
                 _engine = it
             }
 
             if (eng.width != w || eng.height != h) {
                 eng.resize(w, h)
-            } else {
-                eng.render()
             }
+
+            eng.setScale(resources.displayMetrics.density * userZoomFactor)
+
+            if (!hasLoadedContent && eng.currentUrl.isNullOrEmpty()) {
+                eng.loadHtml(currentHtml, currentCss)
+                hasLoadedContent = true
+            }
+            eng.render()
 
             allocateBuffers(w, h)
             drawFrameLocked(eng)
@@ -313,6 +366,22 @@ class NirvanaView @JvmOverloads constructor(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        removeCallbacks(flingRunnable)
+        scroller.abortAnimation()
+        activeNavigationFuture?.cancel(true)
+        activeNavigationFuture = null
+
+        synchronized(engineLock) {
+            pixelBitmap?.recycle()
+            pixelBitmap = null
+            directPixelBuffer = null
+        }
+    }
+
+    /**
+     * Releases the underlying native Rust engine instance when the hosting Activity exits.
+     */
+    fun destroyEngine() {
         removeCallbacks(flingRunnable)
         scroller.abortAnimation()
         activeNavigationFuture?.cancel(true)
@@ -336,35 +405,37 @@ class NirvanaView @JvmOverloads constructor(
     }
 
     private fun drawFrameLocked(eng: NirvanaEngine) {
+        val w = eng.width
+        val h = eng.height
+        if (w <= 0 || h <= 0) return
+
+        allocateBuffers(w, h)
         val bmp = pixelBitmap ?: return
         val buf = directPixelBuffer ?: return
 
         buf.rewind()
-        val success = eng.copyPixelsToBuffer(buf)
-        if (!success) return
+        if (!eng.copyPixelsToBuffer(buf)) return
 
         buf.rewind()
         bmp.copyPixelsFromBuffer(buf)
+
+        if (!holder.surface.isValid) return
 
         var canvas: Canvas? = null
         try {
             canvas = holder.lockCanvas()
             if (canvas != null) {
-                val srcRect = Rect(0, 0, eng.width, eng.height)
-                val dstRect = Rect(0, 0, width, height)
+                canvas.drawColor(android.graphics.Color.WHITE)
+                val srcRect = Rect(0, 0, w, h)
+                val dstRect = Rect(0, 0, width.coerceAtLeast(1), height.coerceAtLeast(1))
                 canvas.drawBitmap(bmp, srcRect, dstRect, null)
             }
+        } catch (e: Exception) {
+            android.util.Log.e("NirvanaView", "Exception drawing to canvas", e)
         } finally {
             if (canvas != null) {
                 holder.unlockCanvasAndPost(canvas)
             }
-        }
-    }
-
-    private fun drawFrame() {
-        synchronized(engineLock) {
-            val eng = _engine ?: return
-            drawFrameLocked(eng)
         }
     }
 }

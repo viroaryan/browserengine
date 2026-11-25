@@ -14,6 +14,6 @@ nirvana_dom = { path = "../nirvana_dom" }
 nirvana_html = { path = "../nirvana_html" }
 nirvana_net = { path = "../nirvana_net" }
 nirvana_url = { path = "../nirvana_url" }
-boa_engine = "0.22.0"
+boa_engine = { version = "0.22.0", features = ["jsvalue-enum"] }
 boa_gc = "0.22.0"
 boa_wintertc = "0.22.0"

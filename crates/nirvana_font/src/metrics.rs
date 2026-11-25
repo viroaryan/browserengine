@@ -37,6 +37,17 @@ impl Font {
 
         let mut total_width: f32 = 0.0;
         for c in text.chars() {
+            if matches!(
+                c,
+                '\u{200B}'..='\u{200F}'
+                    | '\u{FEFF}'
+                    | '\u{00AD}'
+                    | '\u{E000}'..='\u{F8FF}'
+                    | '\u{2318}'
+                    | '\u{2325}'
+            ) {
+                continue;
+            }
             let metrics = self.inner().metrics(c, font_size_px);
             total_width += metrics.advance_width;
         }

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "🛡️ Responsible Security Disclosure"
+    url: "https://github.com/viroaryan/browserengine/blob/main/SECURITY.md"
+    about: Do not report security vulnerabilities publicly. Review our disclosure guide first.
+  - name: "📜 Proprietary License & Commercial Inquiries"
+    url: "https://github.com/viroaryan/browserengine/blob/main/LICENSE"
+    about: All Rights Reserved — strict viewing & evaluation only without signed written permission.

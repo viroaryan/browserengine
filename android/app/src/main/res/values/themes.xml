@@ -4,8 +4,9 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>
-        <item name="android:windowBackground">@color/surface</item>
-        <item name="android:statusBarColor">@color/surface_variant</item>
+        <item name="android:windowBackground">@color/bg_paper</item>
+        <item name="android:statusBarColor">@color/bg_paper</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/bg_paper</item>
     </style>
 </resources>

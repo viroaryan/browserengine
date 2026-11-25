@@ -97,6 +97,38 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeResiz
     });
 }
 
+/// Updates the scale factor (e.g. mobile DPR / display density).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeSetScale(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    scale: jfloat,
+) {
+    let _ = catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return;
+        };
+        engine.set_scale_factor(scale as f32);
+    });
+}
+
+/// Returns the current scale factor.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetScale(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jfloat {
+    catch_unwind(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 1.0;
+        };
+        engine.scale_factor() as jfloat
+    })
+    .unwrap_or(1.0)
+}
+
 /// Executes the layout and rasterization pass.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeRender(
@@ -322,6 +354,30 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeHitTe
     result.unwrap_or(std::ptr::null_mut())
 }
 
+#[cfg(target_os = "android")]
+fn log_android(msg: &str) {
+    use std::ffi::CString;
+    unsafe extern "C" {
+        fn __android_log_print(
+            prio: std::os::raw::c_int,
+            tag: *const std::os::raw::c_char,
+            fmt: *const std::os::raw::c_char,
+            ...
+        ) -> std::os::raw::c_int;
+    }
+    let tag = CString::new("NirvanaEngine").unwrap_or_default();
+    let fmt = CString::new("%s").unwrap_or_default();
+    let message = CString::new(msg).unwrap_or_default();
+    unsafe {
+        __android_log_print(6, tag.as_ptr(), fmt.as_ptr(), message.as_ptr());
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn log_android(msg: &str) {
+    eprintln!("[NirvanaEngine] {msg}");
+}
+
 /// Navigates the engine to a given URL string. Returns true (1) on success, false (0) on failure.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeNavigate(
@@ -338,13 +394,57 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeNavig
             Ok(s) => s.into(),
             Err(_) => return 0,
         };
-        if engine.navigate(&url_str).is_ok() {
-            1
-        } else {
-            0
+        log_android(&format!("nativeNavigate starting for: {url_str}"));
+        match engine.navigate(&url_str) {
+            Ok(()) => {
+                log_android(&format!("nativeNavigate SUCCESS for: {url_str}"));
+                1
+            }
+            Err(e) => {
+                log_android(&format!("nativeNavigate ERROR for {url_str}: {e}"));
+                0
+            }
         }
     }));
-    result.unwrap_or(0)
+    match result {
+        Ok(code) => code,
+        Err(panic) => {
+            let msg = if let Some(s) = panic.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "non-string panic".to_string()
+            };
+            log_android(&format!("PANIC in nativeNavigate: {msg}"));
+            0
+        }
+    }
+}
+
+/// Returns the last navigation error string, or null if no error occurred.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetLastError(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jstring {
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        match engine.last_nav_error.as_deref() {
+            Some(err) => match env.new_string(err) {
+                Ok(js) => js.into_raw(),
+                Err(e) => {
+                    log_android(&format!("nativeGetLastError new_string error: {e}"));
+                    std::ptr::null_mut()
+                }
+            },
+            None => std::ptr::null_mut(),
+        }
+    }));
+    result.unwrap_or(std::ptr::null_mut())
 }
 
 /// Returns the current loaded document URL string, or null if no document is loaded.
@@ -733,6 +833,191 @@ pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeReset
             engine.reset_blocked_count();
         }
     });
+}
+
+/// Returns the active document `<title>` or null if unavailable.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetPageTitle(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jstring {
+    catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        match engine.page_title() {
+            Some(t) => env.new_string(t).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
+            None => std::ptr::null_mut(),
+        }
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+/// Searches rendered document text for `query`, scrolls to `match_index`, and returns match count.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeFindInPage(
+    mut env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    query: JString,
+    match_index: jint,
+) -> jint {
+    catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0;
+        };
+        let Ok(q_str) = env.get_string(&query) else {
+            return 0;
+        };
+        let q: String = q_str.into();
+        engine.find_in_page(&q, match_index.max(0) as usize) as jint
+    }))
+    .unwrap_or(0)
+}
+
+/// Extracts Reader Mode HTML from the active DOM or returns null if empty.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeExtractReaderHtml(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+) -> jstring {
+    catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        match engine.extract_reader_html() {
+            Some(html) => env.new_string(html).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
+            None => std::ptr::null_mut(),
+        }
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+/// Returns visible text snippet of the current document.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeGetPageTextSnippet(
+    env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    max_len: jint,
+) -> jstring {
+    catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return std::ptr::null_mut();
+        };
+        let text = engine.page_text_snippet(max_len.clamp(0, 65536) as usize);
+        env.new_string(text).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+/// Configures engine toggles: desktop_mode, https_only, js_enabled, force_dark, dnt.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeConfigure(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    desktop_mode: jboolean,
+    https_only: jboolean,
+    js_enabled: jboolean,
+    force_dark: jboolean,
+    do_not_track: jboolean,
+) {
+    let _ = catch_unwind(|| {
+        if let Some(engine) = unsafe { get_engine_mut(engine_ptr) } {
+            engine.set_desktop_mode(desktop_mode != 0);
+            engine.set_https_only(https_only != 0);
+            engine.set_js_enabled(js_enabled != 0);
+            engine.set_force_dark_mode(force_dark != 0);
+            engine.set_do_not_track(do_not_track != 0);
+        }
+    });
+}
+
+/// Captures a lock-free `NavSnapshot` pointer so network downloading can execute without holding engine locks.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeBeginNavPrefetch(
+    mut env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    url: JString,
+) -> jlong {
+    catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0;
+        };
+        let url_str: String = match env.get_string(&url) {
+            Ok(s) => s.into(),
+            Err(_) => return 0,
+        };
+        let snap = Box::new(engine.create_nav_snapshot(&url_str));
+        Box::into_raw(snap) as jlong
+    }))
+    .unwrap_or(0)
+}
+
+/// Executes HTTP download & concurrent CSS/image/script prefetch using `snapshot_ptr`, freeing `snapshot_ptr`
+/// and returning a `Result<PreparedNavigation, String>` pointer (`0` only on panic/null).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeExecuteNavPrefetch(
+    mut env: JNIEnv,
+    _class: JClass,
+    snapshot_ptr: jlong,
+    url: JString,
+) -> jlong {
+    catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if snapshot_ptr == 0 {
+            return 0;
+        }
+        let snap = unsafe { Box::from_raw(snapshot_ptr as *mut crate::engine::NavSnapshot) };
+        let url_str: String = match env.get_string(&url) {
+            Ok(s) => s.into(),
+            Err(_) => return 0,
+        };
+        let res = Box::new(crate::engine::fetch_navigation_offline_safe(&url_str, &snap));
+        Box::into_raw(res) as jlong
+    }))
+    .unwrap_or(0)
+}
+
+/// Commits (when `apply != 0`) or discards (`apply == 0`) a prefetched `Result<PreparedNavigation, String>` pointer.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nirvana_browser_engine_NirvanaEngine_nativeCommitNavResult(
+    _env: JNIEnv,
+    _class: JClass,
+    engine_ptr: jlong,
+    result_ptr: jlong,
+    apply: jboolean,
+) -> jboolean {
+    catch_unwind(|| {
+        if result_ptr == 0 {
+            return 0;
+        }
+        let boxed = unsafe {
+            Box::from_raw(
+                result_ptr as *mut Result<crate::engine::PreparedNavigation, String>,
+            )
+        };
+        if apply == 0 {
+            return 0;
+        }
+        let Some(engine) = (unsafe { get_engine_mut(engine_ptr) }) else {
+            return 0;
+        };
+        match *boxed {
+            Ok(prepared) => {
+                engine.apply_prepared_navigation(prepared);
+                1
+            }
+            Err(e) => {
+                engine.last_nav_error = Some(e);
+                0
+            }
+        }
+    })
+    .unwrap_or(0)
 }
 
 fn escape_json(s: &str) -> String {

@@ -18,10 +18,24 @@ pub enum DisplayCommand {
         widths: EdgeSizes,
         color: Rgba,
     },
-    /// Renders a text string at a given baseline origin with specified color.
+    /// Renders a text string at a given baseline origin with specified color and font size.
     Text {
         text: String,
         origin: Point,
+        color: Rgba,
+        font_size: f32,
+    },
+    /// Draws a rounded colored rectangle.
+    RoundedRect {
+        rect: Rect,
+        radius: f32,
+        color: Rgba,
+    },
+    /// Draws rounded borders around a rectangle.
+    RoundedBorder {
+        rect: Rect,
+        radius: f32,
+        widths: EdgeSizes,
         color: Rgba,
     },
     /// Draws a decoded image scaled to fit inside the specified rectangle.

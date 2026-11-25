@@ -55,6 +55,22 @@ class NirvanaEngine(
         }
 
     /**
+     * Updates the scale factor (e.g. mobile DPR / display density).
+     */
+    @Synchronized
+    fun setScale(scale: Float) {
+        checkOpen()
+        nativeSetScale(nativePtr, scale)
+    }
+
+    /** Viewport scale factor (density ratio). */
+    val scale: Float
+        @Synchronized get() {
+            checkOpen()
+            return nativeGetScale(nativePtr)
+        }
+
+    /**
      * Loads and parses an HTML document with optional CSS rules.
      */
     @Synchronized
@@ -74,11 +90,45 @@ class NirvanaEngine(
         return nativeNavigate(nativePtr, url)
     }
 
+    /**
+     * Captures a lock-free snapshot pointer for off-thread downloading. Must be consumed by [executeNavPrefetch].
+     */
+    @Synchronized
+    fun beginNavPrefetch(url: String): Long {
+        if (isClosed.get() || nativePtr == 0L) return 0L
+        return nativeBeginNavPrefetch(nativePtr, url)
+    }
+
+    /**
+     * Performs HTTP fetching and concurrent subresource prefetching without locking the UI render engine.
+     */
+    fun executeNavPrefetch(snapshotPtr: Long, url: String): Long {
+        if (snapshotPtr == 0L) return 0L
+        return nativeExecuteNavPrefetch(snapshotPtr, url)
+    }
+
+    /**
+     * Commits (or frees when [apply] is false) a prefetched navigation result into the engine.
+     */
+    @Synchronized
+    fun commitNavResult(resultPtr: Long, apply: Boolean): Boolean {
+        if (resultPtr == 0L) return false
+        val targetPtr = if (apply && !isClosed.get() && nativePtr != 0L) nativePtr else 0L
+        return nativeCommitNavResult(targetPtr, resultPtr, apply && targetPtr != 0L)
+    }
+
     /** The canonical URL of the currently loaded document, or null if none. */
     val currentUrl: String?
         @Synchronized get() {
             checkOpen()
             return nativeGetCurrentUrl(nativePtr)
+        }
+
+    /** The last navigation error string, or null if last navigation succeeded. */
+    val lastError: String?
+        @Synchronized get() {
+            checkOpen()
+            return nativeGetLastError(nativePtr)
         }
 
     /**
@@ -340,6 +390,55 @@ class NirvanaEngine(
         nativeResetBlockedCount(nativePtr)
     }
 
+    /** Title extracted from the current document's `<title>` tag, or null if absent. */
+    val pageTitle: String?
+        @Synchronized get() {
+            checkOpen()
+            return nativeGetPageTitle(nativePtr)
+        }
+
+    /**
+     * Finds text matches across the active layout tree, scrolls to `matchIndex`, and returns total match count.
+     */
+    @Synchronized
+    fun findInPage(query: String, matchIndex: Int): Int {
+        checkOpen()
+        return nativeFindInPage(nativePtr, query, matchIndex)
+    }
+
+    /**
+     * Extracts clean Reader View HTML from the active document DOM, or null if unsuitable.
+     */
+    @Synchronized
+    fun extractReaderHtml(): String? {
+        checkOpen()
+        return nativeExtractReaderHtml(nativePtr)
+    }
+
+    /**
+     * Returns extracted plain text snippet from the current DOM.
+     */
+    @Synchronized
+    fun getPageTextSnippet(maxLen: Int = 2048): String {
+        checkOpen()
+        return nativeGetPageTextSnippet(nativePtr, maxLen) ?: ""
+    }
+
+    /**
+     * Applies runtime engine feature & privacy preferences.
+     */
+    @Synchronized
+    fun configure(
+        desktopMode: Boolean,
+        httpsOnly: Boolean,
+        jsEnabled: Boolean,
+        forceDark: Boolean,
+        doNotTrack: Boolean
+    ) {
+        checkOpen()
+        nativeConfigure(nativePtr, desktopMode, httpsOnly, jsEnabled, forceDark, doNotTrack)
+    }
+
     private fun parseHitTargetJson(json: String): HitTarget? {
         val tagMatch = Regex("\"tag\"\\s*:\\s*\"([^\"]*)\"").find(json) ?: return null
         val tag = tagMatch.groupValues[1]
@@ -374,6 +473,8 @@ class NirvanaEngine(
     private external fun nativeDestroy(enginePtr: Long)
     private external fun nativeLoadHtml(enginePtr: Long, html: String, css: String)
     private external fun nativeResize(enginePtr: Long, width: Int, height: Int)
+    private external fun nativeSetScale(enginePtr: Long, scale: Float)
+    private external fun nativeGetScale(enginePtr: Long): Float
     private external fun nativeRender(enginePtr: Long)
     private external fun nativeGetWidth(enginePtr: Long): Int
     private external fun nativeGetHeight(enginePtr: Long): Int
@@ -394,6 +495,7 @@ class NirvanaEngine(
     private external fun nativeBlur(enginePtr: Long)
     private external fun nativeNavigate(enginePtr: Long, url: String): Boolean
     private external fun nativeGetCurrentUrl(enginePtr: Long): String?
+    private external fun nativeGetLastError(enginePtr: Long): String?
     private external fun nativeEvaluateJs(enginePtr: Long, script: String): String?
     private external fun nativeStepTimers(enginePtr: Long, deltaMs: Long): Int
     private external fun nativeClearCookies(enginePtr: Long)
@@ -405,6 +507,21 @@ class NirvanaEngine(
     private external fun nativeIsAdBlockEnabled(enginePtr: Long): Boolean
     private external fun nativeAddAdBlockRule(enginePtr: Long, rule: String)
     private external fun nativeResetBlockedCount(enginePtr: Long)
+    private external fun nativeGetPageTitle(enginePtr: Long): String?
+    private external fun nativeFindInPage(enginePtr: Long, query: String, matchIndex: Int): Int
+    private external fun nativeExtractReaderHtml(enginePtr: Long): String?
+    private external fun nativeGetPageTextSnippet(enginePtr: Long, maxLen: Int): String?
+    private external fun nativeConfigure(
+        enginePtr: Long,
+        desktopMode: Boolean,
+        httpsOnly: Boolean,
+        jsEnabled: Boolean,
+        forceDark: Boolean,
+        doNotTrack: Boolean
+    )
+    private external fun nativeBeginNavPrefetch(enginePtr: Long, url: String): Long
+    private external fun nativeExecuteNavPrefetch(snapshotPtr: Long, url: String): Long
+    private external fun nativeCommitNavResult(enginePtr: Long, resultPtr: Long, apply: Boolean): Boolean
 
     companion object {
         init {

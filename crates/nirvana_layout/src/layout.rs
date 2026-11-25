@@ -24,7 +24,11 @@ pub fn layout_document_with_context(
     viewport: Size,
     context: &LayoutContext,
 ) -> Option<LayoutBox> {
-    let mut root_box = build_layout_tree_with_context(dom, style_tree, context)?;
+    let mut ctx = context.clone();
+    if ctx.viewport_width <= 0.0 {
+        ctx.viewport_width = viewport.width;
+    }
+    let mut root_box = build_layout_tree_with_context(dom, style_tree, &ctx)?;
 
     let initial_containing_block = Dimensions {
         content: Rect::new(0.0, 0.0, viewport.width, viewport.height),

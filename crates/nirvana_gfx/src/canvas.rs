@@ -85,6 +85,131 @@ impl Canvas {
         }
     }
 
+    /// Fills a rounded axis-aligned rectangle using crisp edge antialiasing.
+    pub fn fill_rounded_rect(&mut self, rect: Rect, radius: f32, color: Rgba) {
+        if color.a == 0 || rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+        let r = radius
+            .min(rect.width() * 0.5)
+            .min(rect.height() * 0.5)
+            .max(0.0);
+        if r <= 0.5 {
+            self.fill_rect(rect, color);
+            return;
+        }
+
+        let x0 = (rect.x().floor() as i64).max(0).min(self.width as i64) as u32;
+        let y0 = (rect.y().floor() as i64).max(0).min(self.height as i64) as u32;
+        let x1 = ((rect.x() + rect.width()).ceil() as i64)
+            .max(0)
+            .min(self.width as i64) as u32;
+        let y1 = ((rect.y() + rect.height()).ceil() as i64)
+            .max(0)
+            .min(self.height as i64) as u32;
+
+        let inner_left = rect.x() + r;
+        let inner_right = rect.x() + rect.width() - r;
+        let inner_top = rect.y() + r;
+        let inner_bottom = rect.y() + rect.height() - r;
+        let r_sq = r * r;
+
+        for y in y0..y1 {
+            let py = y as f32 + 0.5;
+            for x in x0..x1 {
+                let px = x as f32 + 0.5;
+                let dx = if px < inner_left {
+                    inner_left - px
+                } else if px > inner_right {
+                    px - inner_right
+                } else {
+                    0.0
+                };
+                let dy = if py < inner_top {
+                    inner_top - py
+                } else if py > inner_bottom {
+                    py - inner_bottom
+                } else {
+                    0.0
+                };
+                if dx == 0.0 || dy == 0.0 || (dx * dx + dy * dy) <= r_sq {
+                    self.put_pixel(x, y, color);
+                }
+            }
+        }
+    }
+
+    /// Draws rounded borders around a rectangle (falls back to square borders for small radii).
+    pub fn draw_rounded_borders(
+        &mut self,
+        rect: Rect,
+        radius: f32,
+        widths: EdgeSizes,
+        color: Rgba,
+    ) {
+        if color.a == 0 || rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return;
+        }
+        let stroke = widths.top.max(widths.right).max(widths.bottom).max(widths.left);
+        if radius <= 1.0 || stroke <= 0.0 {
+            self.draw_borders(rect, widths, color);
+            return;
+        }
+        let r = radius
+            .min(rect.width() * 0.5)
+            .min(rect.height() * 0.5);
+        let x0 = (rect.x().floor() as i64).max(0).min(self.width as i64) as u32;
+        let y0 = (rect.y().floor() as i64).max(0).min(self.height as i64) as u32;
+        let x1 = ((rect.x() + rect.width()).ceil() as i64)
+            .max(0)
+            .min(self.width as i64) as u32;
+        let y1 = ((rect.y() + rect.height()).ceil() as i64)
+            .max(0)
+            .min(self.height as i64) as u32;
+
+        let inner_left = rect.x() + r;
+        let inner_right = rect.x() + rect.width() - r;
+        let inner_top = rect.y() + r;
+        let inner_bottom = rect.y() + rect.height() - r;
+        let outer_sq = r * r;
+        let inner_r = (r - stroke).max(0.0);
+        let inner_sq = inner_r * inner_r;
+
+        for y in y0..y1 {
+            let py = y as f32 + 0.5;
+            for x in x0..x1 {
+                let px = x as f32 + 0.5;
+                let dx = if px < inner_left {
+                    inner_left - px
+                } else if px > inner_right {
+                    px - inner_right
+                } else {
+                    0.0
+                };
+                let dy = if py < inner_top {
+                    inner_top - py
+                } else if py > inner_bottom {
+                    py - inner_bottom
+                } else {
+                    0.0
+                };
+
+                if dx > 0.0 && dy > 0.0 {
+                    let dist_sq = dx * dx + dy * dy;
+                    if dist_sq <= outer_sq && dist_sq >= inner_sq {
+                        self.put_pixel(x, y, color);
+                    }
+                } else if px < rect.x() + widths.left
+                    || px > rect.x() + rect.width() - widths.right
+                    || py < rect.y() + widths.top
+                    || py > rect.y() + rect.height() - widths.bottom
+                {
+                    self.put_pixel(x, y, color);
+                }
+            }
+        }
+    }
+
     /// Fills an axis-aligned rectangle with a solid color, clamped to canvas boundaries.
     pub fn fill_rect(&mut self, rect: Rect, color: Rgba) {
         if color.a == 0 {
@@ -168,6 +293,17 @@ impl Canvas {
         let mut cursor_x = origin_x;
 
         for c in text.chars() {
+            if matches!(
+                c,
+                '\u{200B}'..='\u{200F}'
+                    | '\u{FEFF}'
+                    | '\u{00AD}'
+                    | '\u{E000}'..='\u{F8FF}'
+                    | '\u{2318}'
+                    | '\u{2325}'
+            ) {
+                continue;
+            }
             let glyph = font.rasterize_glyph(c, font_size_px);
 
             if glyph.width > 0 && glyph.height > 0 {
@@ -299,14 +435,41 @@ impl Canvas {
                     );
                     self.draw_borders(shifted_rect, *widths, *color);
                 }
-                DisplayCommand::Text { text, origin, color } => {
+                DisplayCommand::RoundedRect {
+                    rect,
+                    radius,
+                    color,
+                } => {
+                    let shifted_rect = Rect::new(
+                        rect.x() + offset_x,
+                        rect.y() + offset_y,
+                        rect.width(),
+                        rect.height(),
+                    );
+                    self.fill_rounded_rect(shifted_rect, *radius, *color);
+                }
+                DisplayCommand::RoundedBorder {
+                    rect,
+                    radius,
+                    widths,
+                    color,
+                } => {
+                    let shifted_rect = Rect::new(
+                        rect.x() + offset_x,
+                        rect.y() + offset_y,
+                        rect.width(),
+                        rect.height(),
+                    );
+                    self.draw_rounded_borders(shifted_rect, *radius, *widths, *color);
+                }
+                DisplayCommand::Text { text, origin, color, font_size } => {
                     let font = nirvana_font::Font::default_font();
                     self.draw_text(
                         font,
                         text,
                         origin.x + offset_x,
                         origin.y + offset_y,
-                        16.0,
+                        *font_size,
                         *color,
                     );
                 }
@@ -344,6 +507,125 @@ impl Canvas {
     /// Executes all commands in the display list onto this canvas.
     pub fn render_display_list(&mut self, list: &DisplayList) {
         self.render_display_list_with_offset(list, 0.0, 0.0);
+    }
+
+    /// Renders all display commands with given scroll offsets and scaling factor.
+    pub fn render_display_list_with_scale(
+        &mut self,
+        list: &DisplayList,
+        offset_x: f32,
+        offset_y: f32,
+        scale: f32,
+    ) {
+        let s = scale.max(0.1);
+        for cmd in &list.commands {
+            match cmd {
+                DisplayCommand::SolidColor { rect, color } => {
+                    let scaled_rect = Rect::new(
+                        (rect.x() + offset_x) * s,
+                        (rect.y() + offset_y) * s,
+                        rect.width() * s,
+                        rect.height() * s,
+                    );
+                    self.fill_rect(scaled_rect, *color);
+                }
+                DisplayCommand::Border {
+                    rect,
+                    widths,
+                    color,
+                } => {
+                    let scaled_rect = Rect::new(
+                        (rect.x() + offset_x) * s,
+                        (rect.y() + offset_y) * s,
+                        rect.width() * s,
+                        rect.height() * s,
+                    );
+                    let scaled_widths = EdgeSizes::new(
+                        widths.top * s,
+                        widths.right * s,
+                        widths.bottom * s,
+                        widths.left * s,
+                    );
+                    self.draw_borders(scaled_rect, scaled_widths, *color);
+                }
+                DisplayCommand::RoundedRect {
+                    rect,
+                    radius,
+                    color,
+                } => {
+                    let scaled_rect = Rect::new(
+                        (rect.x() + offset_x) * s,
+                        (rect.y() + offset_y) * s,
+                        rect.width() * s,
+                        rect.height() * s,
+                    );
+                    self.fill_rounded_rect(scaled_rect, *radius * s, *color);
+                }
+                DisplayCommand::RoundedBorder {
+                    rect,
+                    radius,
+                    widths,
+                    color,
+                } => {
+                    let scaled_rect = Rect::new(
+                        (rect.x() + offset_x) * s,
+                        (rect.y() + offset_y) * s,
+                        rect.width() * s,
+                        rect.height() * s,
+                    );
+                    let scaled_widths = EdgeSizes::new(
+                        widths.top * s,
+                        widths.right * s,
+                        widths.bottom * s,
+                        widths.left * s,
+                    );
+                    self.draw_rounded_borders(scaled_rect, *radius * s, scaled_widths, *color);
+                }
+                DisplayCommand::Text {
+                    text,
+                    origin,
+                    color,
+                    font_size,
+                } => {
+                    let font = nirvana_font::Font::default_font();
+                    self.draw_text(
+                        font,
+                        text,
+                        (origin.x + offset_x) * s,
+                        (origin.y + offset_y) * s,
+                        *font_size * s,
+                        *color,
+                    );
+                }
+                DisplayCommand::DrawImage { rect, image } => {
+                    let scaled_rect = Rect::new(
+                        (rect.x() + offset_x) * s,
+                        (rect.y() + offset_y) * s,
+                        rect.width() * s,
+                        rect.height() * s,
+                    );
+                    self.draw_image(scaled_rect, image);
+                }
+                DisplayCommand::Caret { rect, color } => {
+                    let scaled_rect = Rect::new(
+                        (rect.x() + offset_x) * s,
+                        (rect.y() + offset_y) * s,
+                        rect.width() * s,
+                        rect.height() * s,
+                    );
+                    self.fill_rect(scaled_rect, *color);
+                }
+                DisplayCommand::TextSelection { rect, color } => {
+                    let scaled_rect = Rect::new(
+                        (rect.x() + offset_x) * s,
+                        (rect.y() + offset_y) * s,
+                        rect.width() * s,
+                        rect.height() * s,
+                    );
+                    self.fill_rect(scaled_rect, *color);
+                }
+            }
+        }
     }
 
     /// Encodes canvas RGBA pixels into PNG format bytes.

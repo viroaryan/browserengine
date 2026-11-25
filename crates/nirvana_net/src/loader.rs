@@ -9,9 +9,9 @@ use nirvana_url::Url;
 use std::sync::Arc;
 
 /// Central coordinator for loading web resources across all supported protocols.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResourceLoader {
-    handlers: Vec<Box<dyn ProtocolHandler>>,
+    handlers: Arc<Vec<Box<dyn ProtocolHandler>>>,
     cache: Arc<ResourceCache>,
 }
 
@@ -31,7 +31,7 @@ impl ResourceLoader {
         ];
 
         Self {
-            handlers,
+            handlers: Arc::new(handlers),
             cache: Arc::new(ResourceCache::default()),
         }
     }
@@ -39,7 +39,7 @@ impl ResourceLoader {
     /// Creates a ResourceLoader with custom protocol handlers.
     pub fn with_handlers(handlers: Vec<Box<dyn ProtocolHandler>>) -> Self {
         Self {
-            handlers,
+            handlers: Arc::new(handlers),
             cache: Arc::new(ResourceCache::default()),
         }
     }
@@ -55,8 +55,17 @@ impl ResourceLoader {
         self.fetch_with_headers(url, &[])
     }
 
-    /// Fetches a resource from the given parsed `Url` with custom request headers (e.g. `Cookie: ...`).
+    /// Fetches a resource with custom request headers (e.g. `Cookie: ...`).
     pub fn fetch_with_headers(&self, url: &Url, headers: &[(&str, &str)]) -> Result<Response, NetError> {
+        self.fetch_internal(url, headers, false)
+    }
+
+    /// Fetches a subresource with tighter deadline budgets so slow trackers/CDNs cannot stall page load.
+    pub fn fetch_fast_with_headers(&self, url: &Url, headers: &[(&str, &str)]) -> Result<Response, NetError> {
+        self.fetch_internal(url, headers, true)
+    }
+
+    fn fetch_internal(&self, url: &Url, headers: &[(&str, &str)], fast: bool) -> Result<Response, NetError> {
         let url_str = url.as_str();
 
         // 1. Check cache (only when no dynamic request headers like Cookie are provided)
@@ -74,7 +83,11 @@ impl ResourceLoader {
             .ok_or_else(|| NetError::UnsupportedScheme(url.scheme().to_string()))?;
 
         // 3. Fetch resource
-        let response = handler.fetch_with_headers(url, headers)?;
+        let response = if fast {
+            handler.fetch_fast_with_headers(url, headers)?
+        } else {
+            handler.fetch_with_headers(url, headers)?
+        };
 
         // 4. Store in cache on success (2xx HTTP / OK status) if no request headers
         if response.status >= 200 && response.status < 300 && headers.is_empty() {

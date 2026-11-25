@@ -40,6 +40,7 @@ impl ProtocolHandler for MockHttp404Handler {
             raw_headers: Vec::new(),
             body: b"404 Not Found".to_vec(),
             mime_type: Some("text/html".to_string()),
+            final_url: None,
         })
     }
 }

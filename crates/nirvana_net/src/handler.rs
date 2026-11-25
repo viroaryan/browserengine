@@ -17,6 +17,11 @@ pub trait ProtocolHandler: Send + Sync + std::fmt::Debug {
     fn fetch_with_headers(&self, url: &Url, _headers: &[(&str, &str)]) -> Result<Response, NetError> {
         self.fetch(url)
     }
+
+    /// Fetches a subresource (CSS, image, script) with tighter connect/transfer deadlines.
+    fn fetch_fast_with_headers(&self, url: &Url, headers: &[(&str, &str)]) -> Result<Response, NetError> {
+        self.fetch_with_headers(url, headers)
+    }
 }
 
 /// Protocol handler for local `file://` URLs.

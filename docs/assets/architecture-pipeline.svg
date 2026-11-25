@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" role="img" aria-label="Nirvana Sovereign Browser Engine 6-Stage Rendering Architecture">
+  <defs>
+    <linearGradient id="canvasBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141413"/>
+      <stop offset="100%" stop-color="#1E1D1B"/>
+    </linearGradient>
+    <marker id="arrowTerracotta" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#D97757"/>
+    </marker>
+    <marker id="arrowEmerald" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#34D399"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#FBBF24"/>
+    </marker>
+    <marker id="arrowIndigo" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#818CF8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="520" rx="18" fill="url(#canvasBg)" stroke="#353430" stroke-width="1.5"/>
+
+  <text x="36" y="44" font-family="Georgia, serif" font-size="23" font-weight="700" fill="#FAF9F5">
+    How Nirvana Builds Pixels From Raw Bytes — Without Chromium or WebKit
+  </text>
+  <text x="36" y="68" font-family="Segoe UI, sans-serif" font-size="13.5" fill="#A19E95">
+    Every stage runs inside memory-safe Rust crates (#![forbid(unsafe_code)]) before crossing one catch_unwind-guarded JNI boundary
+  </text>
+
+  <!-- Stage 1: Network + Security + AdBlock -->
+  <g transform="translate(36, 98)">
+    <rect width="248" height="158" rx="14" fill="#132A20" stroke="#34D399" stroke-width="1.8"/>
+    <rect x="14" y="14" width="94" height="22" rx="11" fill="#2F6F4E"/>
+    <text x="24" y="29" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#ECFDF5">01 · NETWORK</text>
+    <text x="16" y="60" font-family="Consolas, monospace" font-size="16" font-weight="700" fill="#6EE7B7">nirvana_net</text>
+    <text x="16" y="80" font-family="Consolas, monospace" font-size="14" font-weight="700" fill="#6EE7B7">nirvana_adblock</text>
+    <text x="16" y="102" font-family="Consolas, monospace" font-size="13" fill="#A7F3D0">nirvana_url</text>
+    <text x="16" y="126" font-family="Segoe UI, sans-serif" font-size="12" fill="#D1FAE5">• Pure-Rust rustls HTTPS + IPv4 fallback</text>
+    <text x="16" y="144" font-family="Segoe UI, sans-serif" font-size="12" fill="#D1FAE5">• RFC 6265 CookieJar, CSP &amp; uBlock rules</text>
+  </g>
+
+  <line x1="288" y1="177" x2="328" y2="177" stroke="#34D399" stroke-width="2.5" marker-end="url(#arrowEmerald)"/>
+
+  <!-- Stage 2: HTML + DOM -->
+  <g transform="translate(334, 98)">
+    <rect width="248" height="158" rx="14" fill="#2A1B16" stroke="#D97757" stroke-width="1.8"/>
+    <rect x="14" y="14" width="96" height="22" rx="11" fill="#C26142"/>
+    <text x="24" y="29" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#FAF9F5">02 · PARSING</text>
+    <text x="16" y="60" font-family="Consolas, monospace" font-size="16" font-weight="700" fill="#FDBA74">nirvana_html</text>
+    <text x="16" y="80" font-family="Consolas, monospace" font-size="14" font-weight="700" fill="#FDBA74">nirvana_dom</text>
+    <text x="16" y="104" font-family="Segoe UI, sans-serif" font-size="12" fill="#FED7AA">• WHATWG streaming state machine</text>
+    <text x="16" y="122" font-family="Segoe UI, sans-serif" font-size="12" fill="#FED7AA">• Arena NodeId tree (MAX_DEPTH 512)</text>
+    <text x="16" y="140" font-family="Segoe UI, sans-serif" font-size="12" fill="#FED7AA">• Zero pointer cycles, mutation tracking</text>
+  </g>
+
+  <line x1="586" y1="177" x2="626" y2="177" stroke="#D97757" stroke-width="2.5" marker-end="url(#arrowTerracotta)"/>
+
+  <!-- Stage 3: CSS & Style Cascade -->
+  <g transform="translate(632, 98)">
+    <rect width="252" height="158" rx="14" fill="#261F12" stroke="#FBBF24" stroke-width="1.8"/>
+    <rect x="14" y="14" width="102" height="22" rx="11" fill="#B45309"/>
+    <text x="24" y="29" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#FFFBEB">03 · STYLING</text>
+    <text x="16" y="60" font-family="Consolas, monospace" font-size="16" font-weight="700" fill="#FCD34D">nirvana_css</text>
+    <text x="16" y="80" font-family="Consolas, monospace" font-size="14" font-weight="700" fill="#FCD34D">nirvana_style</text>
+    <text x="16" y="104" font-family="Segoe UI, sans-serif" font-size="12" fill="#FEF3C7">• Escaped Tailwind selectors, @media, var()</text>
+    <text x="16" y="122" font-family="Segoe UI, sans-serif" font-size="12" fill="#FEF3C7">• O(1) subject RuleIndex cascade</text>
+    <text x="16" y="140" font-family="Segoe UI, sans-serif" font-size="12" fill="#FEF3C7">• Forced Charcoal Dark &amp; cosmetic hiding</text>
+  </g>
+
+  <line x1="888" y1="177" x2="928" y2="177" stroke="#FBBF24" stroke-width="2.5" marker-end="url(#arrowAmber)"/>
+
+  <!-- Stage 4: JavaScript Sandbox -->
+  <g transform="translate(934, 98)">
+    <rect width="230" height="158" rx="14" fill="#1C1B33" stroke="#818CF8" stroke-width="1.8"/>
+    <rect x="14" y="14" width="114" height="22" rx="11" fill="#4F46E5"/>
+    <text x="24" y="29" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#EEF2FF">04 · RUNTIME JS</text>
+    <text x="16" y="60" font-family="Consolas, monospace" font-size="16" font-weight="700" fill="#A5B4FC">nirvana_js</text>
+    <text x="16" y="84" font-family="Segoe UI, sans-serif" font-size="12" fill="#E0E7FF">• Boa ES2024 sandboxed runtime</text>
+    <text x="16" y="102" font-family="Segoe UI, sans-serif" font-size="12" fill="#E0E7FF">• Bounded recursion &amp; loop limits</text>
+    <text x="16" y="120" font-family="Segoe UI, sans-serif" font-size="12" fill="#E0E7FF">• Live DOM, timers &amp; Web Storage</text>
+    <text x="16" y="138" font-family="Segoe UI, sans-serif" font-size="12" fill="#E0E7FF">• Browser API &amp; observer shims</text>
+  </g>
+
+  <!-- Connector down from row 1 to row 2 -->
+  <path d="M 1049 258 L 1049 286 L 160 286 L 160 314" fill="none" stroke="#818CF8" stroke-width="2.2" stroke-dasharray="6,4" marker-end="url(#arrowIndigo)"/>
+
+  <!-- Stage 5: Layout Engine -->
+  <g transform="translate(36, 320)">
+    <rect width="356" height="162" rx="14" fill="#2A1724" stroke="#F472B6" stroke-width="1.8"/>
+    <rect x="14" y="14" width="110" height="22" rx="11" fill="#BE185D"/>
+    <text x="24" y="29" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#FDF2F8">05 · GEOMETRY</text>
+    <text x="16" y="60" font-family="Consolas, monospace" font-size="16" font-weight="700" fill="#F9A8D4">nirvana_layout  ·  nirvana_font</text>
+    <text x="16" y="86" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#FCE7F3">• CSS Block, Inline, Flex, Grid &amp; Table formatting contexts</text>
+    <text x="16" y="106" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#FCE7F3">• Out-of-flow positioning &amp; CSS safe size clamping</text>
+    <text x="16" y="126" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#FCE7F3">• Word-wrap line breaking, fontdue metrics &amp; hit-testing</text>
+    <text x="16" y="146" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#FCE7F3">• Reader View extraction &amp; Find-in-Page text run locator</text>
+  </g>
+
+  <line x1="396" y1="401" x2="438" y2="401" stroke="#D97757" stroke-width="2.5" marker-end="url(#arrowTerracotta)"/>
+
+  <!-- Stage 6: 2D Rasterizer -->
+  <g transform="translate(444, 320)">
+    <rect width="342" height="162" rx="14" fill="#18242D" stroke="#38BDF8" stroke-width="1.8"/>
+    <rect x="14" y="14" width="108" height="22" rx="11" fill="#0369A1"/>
+    <text x="24" y="29" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#F0F9FF">06 · RASTERIZE</text>
+    <text x="16" y="60" font-family="Consolas, monospace" font-size="16" font-weight="700" fill="#7DD3FC">nirvana_gfx  ·  nirvana_core</text>
+    <text x="16" y="86" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E0F2FE">• CSS 2.1 Appendix E ordered DisplayList builder</text>
+    <text x="16" y="106" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E0F2FE">• 32-bit RGBA canvas, rounded rects, Porter-Duff blend</text>
+    <text x="16" y="126" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E0F2FE">• PNG / JPEG / WebP / GIF / ICO software image decode</text>
+    <text x="16" y="146" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E0F2FE">• IME caret &amp; selection rects + HiDPI pixel scaling</text>
+  </g>
+
+  <line x1="790" y1="401" x2="832" y2="401" stroke="#34D399" stroke-width="2.5" marker-end="url(#arrowEmerald)"/>
+
+  <!-- Stage 7: Android NDK + Kotlin Shell -->
+  <g transform="translate(838, 320)">
+    <rect width="326" height="162" rx="14" fill="#231E1C" stroke="#D97757" stroke-width="2"/>
+    <rect x="14" y="14" width="128" height="22" rx="11" fill="#D97757"/>
+    <text x="24" y="29" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700" fill="#FAF9F5">07 · ANDROID APP</text>
+    <text x="16" y="60" font-family="Consolas, monospace" font-size="16" font-weight="700" fill="#FAF9F5">nirvana_android + Kotlin UI</text>
+    <text x="16" y="86" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E5E0D5">• Lock-free off-thread HTTP prefetch &amp; thread pool</text>
+    <text x="16" y="106" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E5E0D5">• Direct ByteBuffer zero-copy SurfaceView blitter</text>
+    <text x="16" y="126" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E5E0D5">• Claude-Editorial UI: Paper, Light, Charcoal &amp; Private</text>
+    <text x="16" y="146" font-family="Segoe UI, sans-serif" font-size="12.5" fill="#E5E0D5">• 5 Search Engines, Tabs, Reader, Shield &amp; Settings</text>
+  </g>
+</svg>

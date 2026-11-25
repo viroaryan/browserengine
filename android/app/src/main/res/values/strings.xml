@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Nirvana Browser</string>
-    <string name="omnibox_hint">Search or enter website address</string>
-    <string name="shield_title">🛡️ uBlock Origin Shield</string>
-    <string name="ads_blocked">Ads &amp; Trackers Blocked:</string>
-    <string name="enable_adblock">Sovereign Ad Blocking Enabled</string>
+    <string name="app_name">Nirvana</string>
+    <string name="omnibox_hint">Search or enter website</string>
+    <string name="shield_title">Protection Shield</string>
+    <string name="ads_blocked">Trackers &amp; ads blocked</string>
+    <string name="enable_adblock">Native Rust Network Protection</string>
     <string name="close">Close</string>
     <string name="reset">Reset Counter</string>
 </resources>

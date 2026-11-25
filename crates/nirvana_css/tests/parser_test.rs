@@ -111,3 +111,40 @@ fn test_unitless_zero_vs_nonzero_length() {
     // margin-bottom: 20 without unit is invalid in CSS lengths, must be rejected
     assert_eq!(rule.get_property("margin-bottom"), None);
 }
+
+#[test]
+fn test_combinators_media_rgb_border_and_important() {
+    let css = r#"
+        @font-face { font-family: "Test"; src: url("test.woff2"); }
+        @media screen and (max-width: 600px) {
+            div.card > p.title {
+                color: rgb(26, 115, 232);
+                background: #f8fafc;
+                border: 2px solid orange;
+                font-size: 1.25em;
+                display: block !important;
+            }
+        }
+        @media (min-width: 1024px) {
+            .desktop-only { display: block; }
+        }
+    "#;
+    let stylesheet = parse_css(css);
+    assert_eq!(stylesheet.rules.len(), 1);
+    let rule = &stylesheet.rules[0];
+    assert_eq!(rule.selectors[0].ancestors.len(), 1);
+    assert_eq!(
+        rule.get_property("color"),
+        Some(&PropertyValue::Color(Rgba::new(26, 115, 232, 255)))
+    );
+    assert_eq!(
+        rule.get_property("background-color"),
+        Some(&PropertyValue::Color(Rgba::new(248, 250, 252, 255)))
+    );
+    assert_eq!(
+        rule.get_property("border-color"),
+        Some(&PropertyValue::Color(Rgba::new(255, 165, 0, 255)))
+    );
+    assert_eq!(rule.get_property("font-size"), Some(&PropertyValue::Em(1.25)));
+    assert!(rule.declarations.iter().any(|d| d.name == "display" && d.important));
+}

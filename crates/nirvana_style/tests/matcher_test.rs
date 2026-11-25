@@ -48,3 +48,32 @@ fn test_universal_selector_matching() {
     // Does not match text node
     assert!(!matches_selector(text, &universal, &tree));
 }
+
+#[test]
+fn test_combinators_attribute_and_pseudo_matching() {
+    let mut tree = DomTree::new();
+    let root = tree.root_id();
+    let card = tree.create_element("div");
+    tree.set_attribute(card, "class", "card").unwrap();
+    let hidden_inp = tree.create_element("input");
+    tree.set_attribute(hidden_inp, "type", "hidden").unwrap();
+    let link = tree.create_element("a");
+    tree.set_attribute(link, "href", "https://nirvana.local").unwrap();
+
+    tree.append_child(root, card).unwrap();
+    tree.append_child(card, hidden_inp).unwrap();
+    tree.append_child(card, link).unwrap();
+
+    let css = r#"
+        div.card > a { }
+        div.card input[type="hidden"] { }
+        a:link { }
+        a:hover { }
+    "#;
+    let sheet = parse_css(css);
+
+    assert!(matches_selector(link, &sheet.rules[0].selectors[0], &tree));
+    assert!(matches_selector(hidden_inp, &sheet.rules[1].selectors[0], &tree));
+    assert!(matches_selector(link, &sheet.rules[2].selectors[0], &tree));
+    assert!(!matches_selector(link, &sheet.rules[3].selectors[0], &tree));
+}

@@ -1,0 +1,29 @@
+name: "✨ Engine Capability / Feature Proposal"
+description: Suggest a W3C web standard, CSS feature, JS API, or Android UX enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help shape the next-generation pure-Rust web platform. Proposals should align with zero C/C++ dependencies and strict memory safety (`#![forbid(unsafe_code)]`).
+  - type: textarea
+    id: summary
+    attributes:
+      label: Proposed Web Standard or Browser Feature
+      description: E.g. CSS Grid `auto-fit`, `fetch()` API bindings, inline SVG rasterization, WebGL/Wasm hooks, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why This Unlocks Real-World Websites or UX
+    validations:
+      required: true
+  - type: checkboxes
+    id: license_ack
+    attributes:
+      label: License Terms
+      options:
+        - label: "I understand submitted ideas and contributions are governed by LICENSE & CONTRIBUTING.md."
+          required: true

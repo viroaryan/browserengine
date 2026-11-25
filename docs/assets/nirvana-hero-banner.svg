@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340" role="img" aria-label="Nirvana Browser Engine — Sovereign Pure-Rust Web Engine">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141413"/>
+      <stop offset="48%" stop-color="#1D1B1A"/>
+      <stop offset="100%" stop-color="#291A14"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="18%" cy="48%" r="42%">
+      <stop offset="0%" stop-color="#D97757" stop-opacity="0.34"/>
+      <stop offset="65%" stop-color="#D97757" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#D97757" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="85%" cy="28%" r="36%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.22"/>
+      <stop offset="70%" stop-color="#2F6F4E" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#2F6F4E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accentBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#D97757"/>
+      <stop offset="45%" stop-color="#F59E0B"/>
+      <stop offset="78%" stop-color="#2F6F4E"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+    <pattern id="gridPat" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#FFFFFF" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- Base Dark Charcoal Editorial Backdrop + Subtle Engineering Blueprint Grid -->
+  <rect width="1200" height="340" rx="18" fill="url(#bgGrad)"/>
+  <rect width="1200" height="340" rx="18" fill="url(#gridPat)"/>
+  <rect width="1200" height="340" rx="18" fill="url(#glow1)"/>
+  <rect width="1200" height="340" rx="18" fill="url(#glow2)"/>
+  <rect x="1.5" y="1.5" width="1197" height="337" rx="17" fill="none" stroke="#3E3A36" stroke-width="1.5"/>
+
+  <!-- Top Spectrum Signal Bar -->
+  <rect x="44" y="28" width="1112" height="4" rx="2" fill="url(#accentBar)"/>
+
+  <!-- Left Geometric Starburst Aperture Emblem in Warm Terracotta Badge -->
+  <g transform="translate(60, 74)">
+    <rect x="0" y="0" width="128" height="128" rx="28" fill="#FAF9F5" stroke="#D97757" stroke-width="2.5"/>
+    <g transform="translate(16, 16) scale(2)">
+      <path fill="#D97757" d="M24,4L26.1,16.4L34,6.7L29.6,18.4L41.3,14L31.6,21.9L44,24L31.6,26.1L41.3,34L29.6,29.6L34,41.3L26.1,31.6L24,44L21.9,31.6L14,41.3L18.4,29.6L6.7,34L16.4,26.1L4,24L16.4,21.9L6.7,14L18.4,18.4L14,6.7L21.9,16.4Z"/>
+      <circle cx="24" cy="24" r="3.6" fill="#FAF9F5"/>
+    </g>
+  </g>
+
+  <!-- Headline & Hook Copy -->
+  <text x="218" y="106" font-family="Georgia, 'Times New Roman', serif" font-size="48" font-weight="700" fill="#FAF9F5" letter-spacing="0.5">
+    Nirvana Browser Engine
+  </text>
+  <text x="220" y="144" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#E89578" letter-spacing="0.3">
+    A Brand-New Sovereign Web Engine Built From Scratch in 100% Pure Rust
+  </text>
+  <text x="220" y="176" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="15.5" fill="#C7C2B8">
+    Zero Chromium · Zero Blink · Zero WebKit · Zero GeckoView · Zero C/C++ in Core Rendering Pipeline
+  </text>
+
+  <!-- Colorful Feature Chips Row -->
+  <g transform="translate(218, 212)" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="700">
+    <rect x="0" y="0" width="154" height="34" rx="17" fill="#CE422B" fill-opacity="0.22" stroke="#D97757" stroke-width="1.2"/>
+    <circle cx="18" cy="17" r="4.5" fill="#D97757"/>
+    <text x="30" y="21.5" fill="#FAF9F5">13 Modular Crates</text>
+
+    <rect x="168" y="0" width="198" height="34" rx="17" fill="#2F6F4E" fill-opacity="0.28" stroke="#4ADE80" stroke-width="1.2"/>
+    <circle cx="186" cy="17" r="4.5" fill="#4ADE80"/>
+    <text x="198" y="21.5" fill="#FAF9F5">#![forbid(unsafe_code)]</text>
+
+    <rect x="380" y="0" width="166" height="34" rx="17" fill="#F59E0B" fill-opacity="0.18" stroke="#FBBF24" stroke-width="1.2"/>
+    <circle cx="398" cy="17" r="4.5" fill="#FBBF24"/>
+    <text x="410" y="21.5" fill="#FAF9F5">100/100 Live Stress</text>
+
+    <rect x="560" y="0" width="164" height="34" rx="17" fill="#6366F1" fill-opacity="0.24" stroke="#818CF8" stroke-width="1.2"/>
+    <circle cx="578" cy="17" r="4.5" fill="#818CF8"/>
+    <text x="590" y="21.5" fill="#FAF9F5">Boa ES2024 + uBlock</text>
+
+    <rect x="738" y="0" width="184" height="34" rx="17" fill="#EC4899" fill-opacity="0.20" stroke="#F472B6" stroke-width="1.2"/>
+    <circle cx="756" cy="17" r="4.5" fill="#F472B6"/>
+    <text x="768" y="21.5" fill="#FAF9F5">ARM64 Android Shell</text>
+  </g>
+
+  <!-- Strict License Strip Footer -->
+  <rect x="44" y="276" width="1112" height="38" rx="10" fill="#0F0F0E" fill-opacity="0.72" stroke="#35322F" stroke-width="1"/>
+  <circle cx="68" cy="295" r="5" fill="#EF4444"/>
+  <text x="84" y="300" font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#FCA5A5" font-weight="700">
+    PROPRIETARY SOURCE-AVAILABLE · ALL RIGHTS RESERVED
+  </text>
+  <text x="498" y="300" font-family="Segoe UI, Roboto, Arial, sans-serif" font-size="12.5" fill="#A19E95">
+    Inspection &amp; Evaluation Only — Strictly No Copying, Redistribution, Forks, or Commercial Derivative Use Without Written Permission
+  </text>
+</svg>

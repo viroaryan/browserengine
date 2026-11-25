@@ -1,0 +1,44 @@
+name: "🌍 Website Compatibility Report"
+description: Report a real-world website that fails to load, renders partially, or has layout clipping
+title: "[Site Compat]: "
+labels: ["web-compat", "engine"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Our goal is for **Nirvana** to cleanly load and render websites from around the world without crashes, stalls, or broken layouts.
+  - type: input
+    id: target_url
+    attributes:
+      label: Target Website URL
+      placeholder: "https://..."
+    validations:
+      required: true
+  - type: dropdown
+    id: failure_mode
+    attributes:
+      label: Failure Category
+      options:
+        - "Blank / empty viewport"
+        - "Overlapping text or broken Flex/Grid/Table layout"
+        - "Timeout or DNS/TLS connection failure"
+        - "Missing styles, images, or unreadable contrast"
+        - "Interactive button / form input / link tap failed"
+        - "Other visual artifact"
+    validations:
+      required: true
+  - type: dropdown
+    id: viewport_mode
+    attributes:
+      label: Viewport Mode
+      options:
+        - "Mobile (Default)"
+        - "Desktop Site ON"
+        - "Dark Web Contents ON"
+        - "Reader View"
+  - type: textarea
+    id: details
+    attributes:
+      label: What looks wrong? (Include screenshot if available)
+    validations:
+      required: true

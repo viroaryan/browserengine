@@ -3,6 +3,18 @@
 use nirvana_core::color::Rgba;
 use std::cmp::Ordering;
 
+/// Attribute comparison operators for CSS `[attr...]` selectors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AttrOp {
+    Exists,
+    Exact,
+    Includes,
+    DashMatch,
+    Prefix,
+    Suffix,
+    Contains,
+}
+
 /// Simple selector components.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SimpleSelector {
@@ -14,11 +26,35 @@ pub enum SimpleSelector {
     Class(String),
     /// Matches element id (e.g. `#main`).
     Id(String),
+    /// Matches an element attribute (e.g. `[type="hidden"]`).
+    Attribute {
+        name: String,
+        op: AttrOp,
+        value: Option<String>,
+    },
+    /// Matches a CSS pseudo-class or pseudo-element (e.g. `:hover`, `:first-child`, `::after`).
+    PseudoClass(String),
+}
+
+/// Combinator linking a selector segment to the next segment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Combinator {
+    Descendant,
+    Child,
+    NextSibling,
+    SubsequentSibling,
+}
+
+/// An ancestor or sibling compound selector constraint evaluated right-to-left.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectorSegment {
+    pub combinator: Combinator,
+    pub simple_selectors: Vec<SimpleSelector>,
 }
 
 /// CSS Selector Specificity tuple: (a, b, c)
 /// - a: ID selectors count
-/// - b: Class selectors count
+/// - b: Class, attribute, and pseudo-class selectors count
 /// - c: Type (tag) selectors count
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Specificity {
@@ -46,31 +82,56 @@ impl PartialOrd for Specificity {
     }
 }
 
-/// A compound selector consisting of one or more simple selectors.
+/// A CSS complex selector consisting of a subject compound selector (`simple_selectors`)
+/// and optional right-to-left combinator chain (`ancestors`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selector {
     pub simple_selectors: Vec<SimpleSelector>,
+    pub ancestors: Vec<SelectorSegment>,
 }
 
 impl Selector {
-    /// Creates a new `Selector`.
+    /// Creates a new simple/compound `Selector` with no ancestor combinators.
     pub fn new(simple_selectors: Vec<SimpleSelector>) -> Self {
-        Self { simple_selectors }
+        Self {
+            simple_selectors,
+            ancestors: Vec::new(),
+        }
     }
 
-    /// Calculates the specificity according to W3C Selectors Level 3.
+    /// Creates a complex `Selector` with right-to-left combinator segments.
+    pub fn with_ancestors(
+        simple_selectors: Vec<SimpleSelector>,
+        ancestors: Vec<SelectorSegment>,
+    ) -> Self {
+        Self {
+            simple_selectors,
+            ancestors,
+        }
+    }
+
+    /// Calculates specificity according to W3C Selectors Level 3 across all segments.
     pub fn specificity(&self) -> Specificity {
         let mut ids = 0;
         let mut classes = 0;
         let mut tags = 0;
 
-        for s in &self.simple_selectors {
-            match s {
-                SimpleSelector::Id(_) => ids += 1,
-                SimpleSelector::Class(_) => classes += 1,
-                SimpleSelector::Tag(_) => tags += 1,
-                SimpleSelector::Universal => {}
+        let mut count_simples = |simples: &[SimpleSelector]| {
+            for s in simples {
+                match s {
+                    SimpleSelector::Id(_) => ids += 1,
+                    SimpleSelector::Class(_)
+                    | SimpleSelector::Attribute { .. }
+                    | SimpleSelector::PseudoClass(_) => classes += 1,
+                    SimpleSelector::Tag(_) => tags += 1,
+                    SimpleSelector::Universal => {}
+                }
             }
+        };
+
+        count_simples(&self.simple_selectors);
+        for seg in &self.ancestors {
+            count_simples(&seg.simple_selectors);
         }
 
         Specificity::new(ids, classes, tags)
@@ -84,8 +145,22 @@ pub enum PropertyValue {
     Keyword(String),
     /// RGBA Color value.
     Color(Rgba),
+    /// Unitless numeric value (e.g. `font-weight: 700`, `line-height: 1.5`).
+    Number(f32),
     /// Explicit pixel dimension.
     Px(f32),
+    /// Relative percentage dimension.
+    Percent(f32),
+    /// Relative `em` font-size dimension.
+    Em(f32),
+    /// Relative `rem` root font-size dimension.
+    Rem(f32),
+    /// Typographic point dimension (`1pt = 4/3 px`).
+    Pt(f32),
+    /// Viewport width percentage (`vw`).
+    Vw(f32),
+    /// Viewport height percentage (`vh`).
+    Vh(f32),
     /// Automatic sizing (`auto`).
     Auto,
 }
@@ -95,6 +170,31 @@ pub enum PropertyValue {
 pub struct Declaration {
     pub name: String,
     pub value: PropertyValue,
+    pub important: bool,
+}
+
+impl Declaration {
+    /// Creates a normal (non-important) CSS property declaration.
+    pub fn new(name: impl Into<String>, value: PropertyValue) -> Self {
+        Self {
+            name: name.into(),
+            value,
+            important: false,
+        }
+    }
+
+    /// Creates a declaration with explicit `!important` flag.
+    pub fn with_importance(
+        name: impl Into<String>,
+        value: PropertyValue,
+        important: bool,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            value,
+            important,
+        }
+    }
 }
 
 /// A CSS rule set consisting of a list of selectors and property declarations.

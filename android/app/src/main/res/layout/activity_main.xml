@@ -4,118 +4,637 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:fitsSystemWindows="true"
-    android:background="@color/surface">
+    android:background="@color/bg_paper">
 
-    <!-- Top App Bar / Omnibox -->
+    <!-- Clean Editorial Claude-Inspired Top App Bar -->
     <LinearLayout
         android:id="@+id/toolbarLayout"
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="4dp"
-        android:paddingEnd="8dp"
-        android:background="@color/surface">
+        android:paddingStart="10dp"
+        android:paddingEnd="6dp"
+        android:background="@color/bg_paper">
 
-        <ImageButton
-            android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Back"
-            android:src="@drawable/ic_back" />
-
-        <ImageButton
-            android:id="@+id/btnForward"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Forward"
-            android:src="@drawable/ic_forward" />
-
-        <!-- Omnibox URL Bar -->
-        <FrameLayout
+        <!-- Spacious Hairline Rounded Pill Omnibox -->
+        <LinearLayout
+            android:id="@+id/omniboxContainer"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="42dp"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp">
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/bg_omnibox"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
+
+            <!-- Left Badge: Search Engine Badge on Home OR Security Lock on Webpage -->
+            <LinearLayout
+                android:id="@+id/btnOmniboxBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="5dp"
+                android:paddingEnd="5dp"
+                android:background="?attr/selectableItemBackgroundBorderless">
+
+                <TextView
+                    android:id="@+id/tvEngineBadge"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:gravity="center"
+                    android:text="G"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/bg_pill_selected" />
+
+                <ImageView
+                    android:id="@+id/ivSecurityLock"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
+                    android:src="@drawable/ic_lock"
+                    android:visibility="gone"
+                    android:contentDescription="Site Security" />
+            </LinearLayout>
 
             <EditText
                 android:id="@+id/etUrl"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:background="@drawable/bg_omnibox"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
                 android:hint="@string/omnibox_hint"
-                android:imeOptions="actionGo"
-                android:inputType="textUri"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
                 android:maxLines="1"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="4dp"
                 android:singleLine="true"
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_secondary"
                 android:textSize="14sp" />
-        </FrameLayout>
 
-        <!-- uBlock Origin Shield Container with Live Counter Badge -->
+            <ImageView
+                android:id="@+id/btnClearUrl"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:padding="5dp"
+                android:visibility="gone"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Clear"
+                android:src="@drawable/ic_close" />
+        </LinearLayout>
+
+        <!-- Minimalist Protection Shield + Terracotta Counter -->
         <FrameLayout
             android:id="@+id/layoutShield"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:foreground="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
             android:focusable="true">
 
             <ImageView
                 android:id="@+id/ivShield"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center"
                 android:contentDescription="@string/shield_title"
                 android:src="@drawable/ic_shield" />
 
             <TextView
                 android:id="@+id/tvBlockedBadge"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
                 android:layout_gravity="top|end"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="2dp"
                 android:background="@drawable/bg_badge"
                 android:gravity="center"
-                android:textColor="@color/surface"
-                android:textSize="9sp"
+                android:textColor="#FFFFFF"
+                android:textSize="8sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
         </FrameLayout>
 
+        <!-- Tab Switcher Square Badge -->
+        <FrameLayout
+            android:id="@+id/btnTabs"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Tabs">
+
+            <TextView
+                android:id="@+id/tvTabCount"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_tab_count"
+                android:gravity="center"
+                android:text="1"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <!-- Clean Vertical Overflow Menu -->
         <ImageButton
-            android:id="@+id/btnRefresh"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:id="@+id/btnMenu"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Refresh"
-            android:src="@drawable/ic_refresh" />
+            android:contentDescription="More Options"
+            android:src="@drawable/ic_more" />
+    </LinearLayout>
+
+    <!-- Crisp Vector Find-in-Page Bar -->
+    <LinearLayout
+        android:id="@+id/findInPageBar"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp"
+        android:background="@color/surface_variant"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etFindQuery"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="Find in page..."
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:singleLine="true"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/tvFindCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0/0"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:layout_marginEnd="6dp" />
+
+        <ImageButton
+            android:id="@+id/btnFindPrev"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:padding="6dp"
+            android:contentDescription="Previous Match"
+            android:src="@drawable/ic_arrow_up"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageButton
+            android:id="@+id/btnFindNext"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:padding="6dp"
+            android:contentDescription="Next Match"
+            android:src="@drawable/ic_arrow_down"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageButton
+            android:id="@+id/btnFindClose"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:padding="6dp"
+            android:contentDescription="Close Find"
+            android:src="@drawable/ic_close"
+            android:background="?attr/selectableItemBackgroundBorderless" />
     </LinearLayout>
 
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="3dp"
+        android:layout_height="2dp"
         android:indeterminate="true"
+        android:indeterminateTint="@color/primary"
         android:visibility="gone" />
 
     <View
+        android:id="@+id/topDivider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/divider" />
 
-    <!-- Sovereign Nirvana Browser Engine Viewport -->
-    <com.nirvana.browser.engine.NirvanaView
-        android:id="@+id/nirvanaView"
+    <!-- Main Content Viewport Frame -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1">
+
+        <!-- 1. Pure-Rust Engine Web Rendering Canvas -->
+        <com.nirvana.browser.engine.NirvanaView
+            android:id="@+id/nirvanaView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <!-- 2. Editorial Claude-Style Home Start Screen -->
+        <FrameLayout
+            android:id="@+id/homeContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <com.nirvana.browser.ui.AuroraBackdropView
+                android:id="@+id/auroraBackdrop"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <ScrollView
+                android:id="@+id/homeLayout"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="none"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:paddingTop="14dp"
+                    android:paddingBottom="28dp">
+
+                    <!-- Subtle Private Mode Toggle Pill -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="end">
+
+                        <LinearLayout
+                            android:id="@+id/btnHomePrivateToggle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="34dp"
+                            android:background="@drawable/bg_pill_unselected"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp">
+
+                            <ImageView
+                                android:id="@+id/ivPrivateToggleIcon"
+                                android:layout_width="15dp"
+                                android:layout_height="15dp"
+                                android:src="@drawable/ic_incognito" />
+
+                            <TextView
+                                android:id="@+id/tvPrivateToggleLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="Private"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Centered Editorial Brand Header (Claude-Style SVG Starburst + Serif Wordmark) -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="28dp">
+
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:src="@drawable/ic_nirvana_emblem"
+                            android:contentDescription="Nirvana Emblem" />
+
+                        <TextView
+                            android:id="@+id/tvHomeBrand"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:fontFamily="serif"
+                            android:text="Nirvana"
+                            android:textSize="33sp"
+                            android:textStyle="normal"
+                            android:textColor="@color/text_primary" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvHomeSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Sovereign Pure-Rust Web Engine"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary" />
+
+                    <!-- Prominent Editorial Center Search Card -->
+                    <LinearLayout
+                        android:id="@+id/homeSearchCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="24dp"
+                        android:background="@drawable/bg_home_search"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="10dp">
+
+                        <ImageView
+                            android:id="@+id/ivHomeSearchIcon"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:src="@drawable/ic_search" />
+
+                        <TextView
+                            android:id="@+id/tvHomeSearchPlaceholder"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="10dp"
+                            android:text="Search with Google or enter URL"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/tvHomeEngineChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_pill_selected"
+                            android:paddingStart="11dp"
+                            android:paddingEnd="11dp"
+                            android:paddingTop="5dp"
+                            android:paddingBottom="5dp"
+                            android:text="Google"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Clean Single-Row Balanced Search Engine Pills (No Edge Clipping) -->
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:scrollbars="none"
+                        android:fillViewport="true"
+                        android:layout_marginTop="14dp">
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center">
+
+                            <TextView
+                                android:id="@+id/pillGoogle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Google"
+                                android:paddingStart="11dp"
+                                android:paddingEnd="11dp"
+                                android:paddingTop="6dp"
+                                android:paddingBottom="6dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_pill_selected"
+                                android:textColor="#FFFFFF"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/pillDuckDuckGo"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="DuckDuckGo"
+                                android:paddingStart="11dp"
+                                android:paddingEnd="11dp"
+                                android:paddingTop="6dp"
+                                android:paddingBottom="6dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_pill_unselected"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11.5sp" />
+
+                            <TextView
+                                android:id="@+id/pillBing"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Bing"
+                                android:paddingStart="11dp"
+                                android:paddingEnd="11dp"
+                                android:paddingTop="6dp"
+                                android:paddingBottom="6dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_pill_unselected"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11.5sp" />
+
+                            <TextView
+                                android:id="@+id/pillBrave"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Brave"
+                                android:paddingStart="11dp"
+                                android:paddingEnd="11dp"
+                                android:paddingTop="6dp"
+                                android:paddingBottom="6dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_pill_unselected"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11.5sp" />
+
+                            <TextView
+                                android:id="@+id/pillEcosia"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Ecosia"
+                                android:paddingStart="11dp"
+                                android:paddingEnd="11dp"
+                                android:paddingTop="6dp"
+                                android:paddingBottom="6dp"
+                                android:background="@drawable/bg_pill_unselected"
+                                android:textColor="@color/text_primary"
+                                android:textSize="11.5sp" />
+                        </LinearLayout>
+                    </HorizontalScrollView>
+
+                    <!-- Dynamic 4x2 SVG Speed Dial Shortcuts Grid -->
+                    <LinearLayout
+                        android:id="@+id/shortcutsSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="22dp">
+
+                        <LinearLayout
+                            android:id="@+id/shortcutsGridContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+                    </LinearLayout>
+
+                    <!-- Restrained Tracker & Ad Protection Card -->
+                    <LinearLayout
+                        android:id="@+id/cardShieldStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_card_glass"
+                        android:padding="14dp"
+                        android:layout_marginTop="20dp">
+
+                        <ImageView
+                            android:id="@+id/ivHomeShieldIcon"
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:src="@drawable/ic_shield" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvHomeShieldTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Tracker Protection Active"
+                                android:textSize="13.5sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:id="@+id/tvHomeShieldSub"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Native socket &amp; cosmetic filtering"
+                                android:textSize="11.5sp"
+                                android:textColor="@color/text_secondary" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvHomeShieldCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 blocked"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/shield_active"
+                            android:background="@drawable/bg_pill_unselected"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="4dp" />
+                    </LinearLayout>
+
+                </LinearLayout>
+            </ScrollView>
+        </FrameLayout>
+
+        <!-- 3. Bounded Live Omnibox Autocomplete Suggestions Dropdown -->
+        <ScrollView
+            android:id="@+id/suggestionsScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="340dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/bg_shortcut_card"
+            android:elevation="6dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/suggestionsPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </ScrollView>
+    </FrameLayout>
+
+    <!-- Bottom Chrome/Claude Action Navigation Bar -->
+    <LinearLayout
+        android:id="@+id/bottomNavBar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="vertical"
+        android:background="@color/bg_paper">
+
+        <View
+            android:id="@+id/bottomDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Back"
+                android:src="@drawable/ic_back" />
+
+            <ImageButton
+                android:id="@+id/btnForward"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Forward"
+                android:src="@drawable/ic_forward" />
+
+            <ImageButton
+                android:id="@+id/btnHome"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Home"
+                android:src="@drawable/ic_home" />
+
+            <ImageButton
+                android:id="@+id/btnBookmark"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Bookmark"
+                android:src="@drawable/ic_star_outline" />
+
+            <ImageButton
+                android:id="@+id/btnRefresh"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Refresh"
+                android:src="@drawable/ic_refresh" />
+        </LinearLayout>
+    </LinearLayout>
 
 </LinearLayout>

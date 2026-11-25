@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Claude-inspired geometric radial starburst aperture emblem in warm terracotta -->
+    <path
+        android:fillColor="#D97757"
+        android:pathData="M24,4L26.1,16.4L34,6.7L29.6,18.4L41.3,14L31.6,21.9L44,24L31.6,26.1L41.3,34L29.6,29.6L34,41.3L26.1,31.6L24,44L21.9,31.6L14,41.3L18.4,29.6L6.7,34L16.4,26.1L4,24L16.4,21.9L6.7,14L18.4,18.4L14,6.7L21.9,16.4Z" />
+    <path
+        android:fillColor="#FAF9F5"
+        android:pathData="M24,20.5a3.5,3.5 0,1 0,0 7a3.5,3.5 0,1 0,0 -7Z" />
+</vector>

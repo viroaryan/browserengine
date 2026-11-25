@@ -22,4 +22,10 @@ android/.gradle/
 android/app/build/
 android/local.properties
 android/app/src/main/jniLibs/
+*.apk
+*.aab
+
+# Temporary debug screenshots and logs in repo root
+/*.png
+*.log
 

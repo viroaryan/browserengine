@@ -77,3 +77,28 @@ fn test_unquoted_attribute_adjacent_self_closing_slash() {
         panic!("Expected StartTag for img");
     }
 }
+
+#[test]
+fn test_script_and_style_rawtext_and_html5_entities() {
+    let html = r#"<script>if (a < b && c > d) { var s = "<div>not a tag</div>"; }</script><p>News &ndash; Live &rsquo;26 &hellip;</p>"#;
+    let tokens = Tokenizer::new(html).tokenize_all();
+
+    let start_tags: Vec<&str> = tokens
+        .iter()
+        .filter_map(|t| match t {
+            Token::StartTag(tag) => Some(tag.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(start_tags, vec!["script", "p"]);
+
+    let text: String = tokens
+        .iter()
+        .filter_map(|t| match t {
+            Token::Character(c) => Some(*c),
+            _ => None,
+        })
+        .collect();
+    assert!(text.contains(r#"if (a < b && c > d) { var s = "<div>not a tag</div>"; }"#));
+    assert!(text.contains("News \u{2013} Live \u{2019}26 \u{2026}"));
+}

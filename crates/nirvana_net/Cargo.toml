@@ -11,8 +11,9 @@ unsafe_code = "forbid"
 [dependencies]
 nirvana_core = { path = "../nirvana_core" }
 nirvana_url = { path = "../nirvana_url" }
+
 [target.'cfg(windows)'.dependencies]
-ureq = { version = "3.5", default-features = false, features = ["native-tls"] }
+ureq = { version = "3.5", default-features = false, features = ["native-tls", "gzip", "brotli"] }
 
 [target.'cfg(not(windows))'.dependencies]
-ureq = { version = "3.5", default-features = false, features = ["rustls"] }
+ureq = { version = "3.5", default-features = false, features = ["rustls", "gzip", "brotli"] }

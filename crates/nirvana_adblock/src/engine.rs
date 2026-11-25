@@ -123,6 +123,14 @@ impl AdBlockEngine {
         self.blocked_count.store(0, Ordering::Relaxed);
     }
 
+    /// Adds blocked request delta recorded during off-thread prefetching.
+    #[inline]
+    pub fn add_blocked_count(&self, delta: u64) {
+        if delta > 0 {
+            self.blocked_count.fetch_add(delta, Ordering::Relaxed);
+        }
+    }
+
     /// Enables or disables ad-blocking globally.
     #[inline]
     pub fn set_enabled(&mut self, enabled: bool) {

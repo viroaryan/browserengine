@@ -1,0 +1,50 @@
+name: "🐛 Engine / App Bug Report"
+description: Report a crash, panic, UI defect, or incorrect layout/behavior in Nirvana Browser Engine
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping harden **Nirvana Browser Engine**! Please fill out the details cleanly so we can reproduce and eliminate every edge case.
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Affected Engine Subsystem
+      description: Which part of the pure-Rust engine or Android shell experienced the bug?
+      options:
+        - "🌐 Network / TLS / HTTP (nirvana_net)"
+        - "📄 HTML5 Tokenizer / DOM (nirvana_html / nirvana_dom)"
+        - "🎨 CSS Parser / Style Cascade (nirvana_css / nirvana_style)"
+        - "📐 Layout / Flex / Grid / Tables (nirvana_layout)"
+        - "🔤 Fonts / 2D Graphics / Images (nirvana_font / nirvana_gfx)"
+        - "⚡ JavaScript Runtime / Timers (nirvana_js)"
+        - "🛡️ Native AdBlock / Cosmetic Filter (nirvana_adblock)"
+        - "📱 Android Shell / Claude UI / JNI (nirvana_android / android)"
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Reproducible URL or Page Snippet
+      placeholder: "https://example.com"
+  - type: textarea
+    id: description
+    attributes:
+      label: Observed vs Expected Behavior
+      description: Describe what broke, visual artifacts, or panic message.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logcat / Cargo Test Output / Screenshot
+      description: Paste any panic backtrace or ADB logcat lines (no secrets).
+      render: shell
+  - type: checkboxes
+    id: license_ack
+    attributes:
+      label: Proprietary IP & Terms Confirmation
+      options:
+        - label: "I acknowledge that this repository is governed by the strict Proprietary License (All Rights Reserved) in LICENSE."
+          required: true

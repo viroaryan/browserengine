@@ -19,6 +19,7 @@ fn test_display_list_commands() {
         text: "Hello Nirvana".into(),
         origin: Point::new(10.0, 30.0),
         color: Rgba::new(255, 255, 255, 255),
+        font_size: 16.0,
     });
 
     assert_eq!(list.commands.len(), 3);

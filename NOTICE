@@ -1,0 +1,15 @@
+NIRVANA BROWSER ENGINE — THIRD-PARTY & INTELLECTUAL PROPERTY NOTICE
+
+1. PROPRIETARY ENGINE & APPLICATION CORE
+All original crates under `crates/`, all Android Kotlin/XML/SVG application
+sources under `android/`, and all architectural specifications under `docs/` are
+Copyright (c) 2026 Aryan (@viroaryan) / Nirvana Browser Project. All rights
+reserved under the terms of the accompanying `LICENSE` file.
+
+2. EMBEDDED OPEN-SOURCE RUST DEPENDENCIES
+The compiled engine links against third-party open-source Rust crates resolved
+via Cargo (including `boa_engine`, `tiny-skia`, `fontdue`, `image`, `rustls`,
+`ureq`, and AndroidX/Material libraries). Each third-party dependency retains
+its own respective license as published by its upstream authors and does not
+alter or weaken the proprietary `LICENSE` governing Nirvana Browser Engine's
+original implementation.

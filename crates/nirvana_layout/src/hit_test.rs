@@ -18,7 +18,15 @@ impl LayoutBox {
             }
         }
 
-        // 2. If no children hit, check if point falls within this box's border area
+        // 2. Check wrapped per-line text runs if present (accurate for multi-line wrapped links)
+        if !self.text_runs.is_empty() {
+            if self.text_runs.iter().any(|r| r.rect.contains_point(point)) {
+                return self.node_id();
+            }
+            return None;
+        }
+
+        // 3. Check if point falls within this box's border area
         if self.dimensions.border_box().contains_point(point) {
             return self.node_id();
         }

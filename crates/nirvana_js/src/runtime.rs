@@ -55,6 +55,9 @@ impl JsRuntime {
         url: &str,
     ) -> Self {
         let mut context = Context::default();
+        context.runtime_limits_mut().set_loop_iteration_limit(200_000);
+        context.runtime_limits_mut().set_recursion_limit(256);
+
         let log_store: LogStore = Arc::new(Mutex::new(Vec::new()));
         let timer_queue = TimerQueue::new();
         let current_origin = Rc::new(RefCell::new(origin.to_string()));
@@ -63,6 +66,7 @@ impl JsRuntime {
         let _ = init_console(&mut context, log_store.clone());
         let _ = init_timers(&mut context, timer_queue.clone());
         init_storage(&mut context, storage_backend.clone(), current_origin.clone());
+        install_browser_shims(&mut context);
 
         Self {
             context,
@@ -162,15 +166,21 @@ impl JsRuntime {
 
     pub fn eval(&mut self, code: &str) -> Result<String, String> {
         let source = Source::from_bytes(code.as_bytes());
-        match self.context.eval(source) {
-            Ok(val) => {
-                let res = val
-                    .to_string(&mut self.context)
-                    .map(|s| s.to_std_string_escaped())
-                    .unwrap_or_else(|e| format!("[Conversion Error: {e}]"));
-                Ok(res)
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            match self.context.eval(source) {
+                Ok(val) => {
+                    let res = val
+                        .to_string(&mut self.context)
+                        .map(|s| s.to_std_string_escaped())
+                        .unwrap_or_else(|e| format!("[Conversion Error: {e}]"));
+                    Ok(res)
+                }
+                Err(err) => Err(format!("{err}")),
             }
-            Err(err) => Err(format!("{err}")),
+        }));
+        match outcome {
+            Ok(res) => res,
+            Err(_) => Err("JS execution aborted safely (runtime panic recovered)".to_string()),
         }
     }
 
@@ -199,7 +209,9 @@ impl JsRuntime {
         let count = to_fire.len();
         for cb in to_fire {
             if cb.is_callable() {
-                let _ = cb.call(&JsValue::undefined(), &[], &mut self.context);
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _ = cb.call(&JsValue::undefined(), &[], &mut self.context);
+                }));
             }
         }
 
@@ -270,11 +282,13 @@ impl JsRuntime {
 
             for listener in listeners {
                 if listener.is_callable() {
-                    let _ = listener.call(
-                        &curr_elem_obj.clone().into(),
-                        &[event_obj.clone().into()],
-                        &mut self.context,
-                    );
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let _ = listener.call(
+                            &curr_elem_obj.clone().into(),
+                            &[event_obj.clone().into()],
+                            &mut self.context,
+                        );
+                    }));
                 }
             }
 
@@ -354,4 +368,125 @@ fn init_storage(
             let _ = win_obj.set(js_string!("sessionStorage"), session, false, context);
         }
     }
+}
+
+fn install_browser_shims(context: &mut Context) {
+    // Provide clean JS Web-API shims and replace Array.prototype.sort with a pure-JS
+    // merge/insertion sort so non-transitive shuffles like () => 0.5 - Math.random()
+    // never trigger Rust's slice::sort_by total-order panic.
+    let shim_src = r#"
+    (function() {
+        if (typeof globalThis.window === 'undefined') {
+            globalThis.window = globalThis;
+        }
+        var g = globalThis;
+        var origSort = Array.prototype.sort;
+        Array.prototype.sort = function(cmp) {
+            if (typeof cmp !== 'function') {
+                return origSort.call(this);
+            }
+            var O = Object(this);
+            var len = O.length >>> 0;
+            if (len <= 1) return this;
+            var items = [];
+            for (var i = 0; i < len; i++) {
+                if (i in O) items.push(O[i]);
+            }
+            var n = items.length;
+            if (n <= 32) {
+                for (var i = 1; i < n; i++) {
+                    var key = items[i];
+                    var j = i - 1;
+                    while (j >= 0 && Number(cmp(items[j], key)) > 0) {
+                        items[j + 1] = items[j];
+                        j--;
+                    }
+                    items[j + 1] = key;
+                }
+            } else {
+                var tmp = new Array(n);
+                for (var width = 1; width < n; width *= 2) {
+                    for (var left = 0; left < n; left += 2 * width) {
+                        var mid = Math.min(left + width, n);
+                        var right = Math.min(left + 2 * width, n);
+                        var l = left, r = mid, k = left;
+                        while (l < mid && r < right) {
+                            if (Number(cmp(items[l], items[r])) <= 0) {
+                                tmp[k++] = items[l++];
+                            } else {
+                                tmp[k++] = items[r++];
+                            }
+                        }
+                        while (l < mid) tmp[k++] = items[l++];
+                        while (r < right) tmp[k++] = items[r++];
+                    }
+                    for (var c = 0; c < n; c++) items[c] = tmp[c];
+                }
+            }
+            for (var k = 0; k < n; k++) O[k] = items[k];
+            for (var k = n; k < len; k++) delete O[k];
+            return this;
+        };
+
+        if (typeof g.navigator === 'undefined') {
+            g.navigator = {
+                userAgent: 'Mozilla/5.0 (Android 14; Mobile; rv:132.0) Gecko/132.0 Firefox/132.0',
+                language: 'en-US',
+                languages: ['en-US', 'en'],
+                onLine: true,
+                cookieEnabled: true,
+                platform: 'Linux aarch64'
+            };
+        }
+        if (typeof g.performance === 'undefined') {
+            var startMs = Date.now();
+            g.performance = { now: function() { return Date.now() - startMs; }, timing: {} };
+        }
+        if (typeof g.requestAnimationFrame !== 'function') {
+            g.requestAnimationFrame = function(cb) { return setTimeout(cb, 16); };
+            g.cancelAnimationFrame = function(id) { clearTimeout(id); };
+        }
+        if (typeof g.matchMedia !== 'function') {
+            g.matchMedia = function(q) {
+                return {
+                    matches: false,
+                    media: String(q || ''),
+                    addListener: function() {},
+                    removeListener: function() {},
+                    addEventListener: function() {},
+                    removeEventListener: function() {}
+                };
+            };
+        }
+        if (typeof g.getComputedStyle !== 'function') {
+            g.getComputedStyle = function(el) {
+                return (el && el.style) ? el.style : {};
+            };
+        }
+        if (typeof g.IntersectionObserver === 'undefined') {
+            g.IntersectionObserver = function() {
+                this.observe = function() {};
+                this.unobserve = function() {};
+                this.disconnect = function() {};
+            };
+        }
+        if (typeof g.ResizeObserver === 'undefined') {
+            g.ResizeObserver = function() {
+                this.observe = function() {};
+                this.unobserve = function() {};
+                this.disconnect = function() {};
+            };
+        }
+        if (typeof g.MutationObserver === 'undefined') {
+            g.MutationObserver = function() {
+                this.observe = function() {};
+                this.disconnect = function() {};
+                this.takeRecords = function() { return []; };
+            };
+        }
+        if (typeof g.scrollTo !== 'function') g.scrollTo = function() {};
+        if (typeof g.scroll !== 'function') g.scroll = function() {};
+    })();
+    "#;
+    let _ = context.eval(Source::from_bytes(shim_src.as_bytes()));
 }

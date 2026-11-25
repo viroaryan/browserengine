@@ -4,8 +4,51 @@ use crate::entities::decode_entities;
 use crate::token::{DoctypeData, TagData, Token};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RawKind {
+    Script,
+    Style,
+    Iframe,
+    Xmp,
+    Noembed,
+    Title,
+    Textarea,
+}
+
+impl RawKind {
+    fn tag_name(self) -> &'static str {
+        match self {
+            RawKind::Script => "script",
+            RawKind::Style => "style",
+            RawKind::Iframe => "iframe",
+            RawKind::Xmp => "xmp",
+            RawKind::Noembed => "noembed",
+            RawKind::Title => "title",
+            RawKind::Textarea => "textarea",
+        }
+    }
+
+    fn decode_entities(self) -> bool {
+        matches!(self, RawKind::Title | RawKind::Textarea)
+    }
+
+    fn from_tag(tag_name: &str) -> Option<Self> {
+        match tag_name {
+            "script" => Some(RawKind::Script),
+            "style" => Some(RawKind::Style),
+            "iframe" => Some(RawKind::Iframe),
+            "xmp" => Some(RawKind::Xmp),
+            "noembed" => Some(RawKind::Noembed),
+            "title" => Some(RawKind::Title),
+            "textarea" => Some(RawKind::Textarea),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum State {
     Data,
+    RawText(RawKind),
     TagOpen,
     EndTagOpen,
     TagName,
@@ -110,6 +153,66 @@ impl Tokenizer {
         }
     }
 
+    fn emit_current_tag(&mut self) -> Token {
+        let tag = self.current_tag.take().unwrap();
+        if self.is_end_tag {
+            self.state = State::Data;
+            Token::EndTag(tag)
+        } else {
+            if !tag.self_closing
+                && let Some(raw_kind) = RawKind::from_tag(&tag.name)
+            {
+                self.state = State::RawText(raw_kind);
+            } else {
+                self.state = State::Data;
+            }
+            Token::StartTag(tag)
+        }
+    }
+
+    fn matches_raw_end_tag(&self, tag_name: &str) -> bool {
+        let needed_len = 1 + tag_name.len();
+        if self.pos + needed_len > self.chars.len() {
+            return false;
+        }
+        if self.chars[self.pos] != '/' {
+            return false;
+        }
+        for (i, tc) in tag_name.chars().enumerate() {
+            if !self.chars[self.pos + 1 + i].eq_ignore_ascii_case(&tc) {
+                return false;
+            }
+        }
+        match self.chars.get(self.pos + needed_len) {
+            Some(c) => matches!(c, '\t' | '\n' | ' ' | '/' | '>'),
+            None => true,
+        }
+    }
+
+    fn read_entity_token(&mut self) -> Option<Token> {
+        let mut entity_buf = String::from("&");
+        while let Some(c) = self.peek() {
+            if c == ';' {
+                self.next_char();
+                entity_buf.push(';');
+                break;
+            } else if c.is_alphanumeric() || c == '#' {
+                entity_buf.push(self.next_char().unwrap());
+                if entity_buf.len() > 12 {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        let decoded = decode_entities(&entity_buf);
+        let mut chars = decoded.chars();
+        chars.next().map(|first| {
+            self.pending_chars.extend(chars);
+            Token::Character(first)
+        })
+    }
+
     pub fn next_token(&mut self) -> Token {
         if !self.pending_chars.is_empty() {
             return Token::Character(self.pending_chars.remove(0));
@@ -123,33 +226,42 @@ impl Tokenizer {
                             self.state = State::TagOpen;
                         }
                         Some('&') => {
-                            // Read entity
-                            let mut entity_buf = String::from("&");
-                            while let Some(c) = self.peek() {
-                                if c == ';' {
-                                    self.next_char();
-                                    entity_buf.push(';');
-                                    break;
-                                } else if c.is_alphanumeric() || c == '#' {
-                                    entity_buf.push(self.next_char().unwrap());
-                                    if entity_buf.len() > 10 {
-                                        break;
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
-                            let decoded = decode_entities(&entity_buf);
-                            let mut chars = decoded.chars();
-                            if let Some(first) = chars.next() {
-                                self.pending_chars.extend(chars);
-                                return Token::Character(first);
+                            if let Some(tok) = self.read_entity_token() {
+                                return tok;
                             }
                         }
                         Some(c) => {
                             return Token::Character(c);
                         }
                         None => {
+                            return Token::Eof;
+                        }
+                    }
+                }
+
+                State::RawText(kind) => {
+                    match self.next_char() {
+                        Some('<') => {
+                            if self.matches_raw_end_tag(kind.tag_name()) {
+                                self.next_char(); // consume '/'
+                                self.is_end_tag = true;
+                                self.current_tag = Some(TagData::new("", false));
+                                self.buffer.clear();
+                                self.state = State::TagName;
+                            } else {
+                                return Token::Character('<');
+                            }
+                        }
+                        Some('&') if kind.decode_entities() => {
+                            if let Some(tok) = self.read_entity_token() {
+                                return tok;
+                            }
+                        }
+                        Some(c) => {
+                            return Token::Character(c);
+                        }
+                        None => {
+                            self.state = State::Data;
                             return Token::Eof;
                         }
                     }
@@ -230,13 +342,7 @@ impl Tokenizer {
                                 tag.name = self.buffer.to_ascii_lowercase();
                             }
                             self.buffer.clear();
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return if self.is_end_tag {
-                                Token::EndTag(tag)
-                            } else {
-                                Token::StartTag(tag)
-                            };
+                            return self.emit_current_tag();
                         }
                         Some(c) => {
                             self.buffer.push(c);
@@ -255,13 +361,7 @@ impl Tokenizer {
                             self.state = State::SelfClosingStartTag;
                         }
                         Some('>') => {
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return if self.is_end_tag {
-                                Token::EndTag(tag)
-                            } else {
-                                Token::StartTag(tag)
-                            };
+                            return self.emit_current_tag();
                         }
                         Some(c) => {
                             self.current_attr_name.clear();
@@ -289,13 +389,7 @@ impl Tokenizer {
                         }
                         Some('>') => {
                             self.commit_attribute();
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return if self.is_end_tag {
-                                Token::EndTag(tag)
-                            } else {
-                                Token::StartTag(tag)
-                            };
+                            return self.emit_current_tag();
                         }
                         Some(c) => {
                             self.current_attr_name.push(c);
@@ -320,13 +414,7 @@ impl Tokenizer {
                         }
                         Some('>') => {
                             self.commit_attribute();
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return if self.is_end_tag {
-                                Token::EndTag(tag)
-                            } else {
-                                Token::StartTag(tag)
-                            };
+                            return self.emit_current_tag();
                         }
                         Some(c) => {
                             self.commit_attribute();
@@ -354,13 +442,7 @@ impl Tokenizer {
                         }
                         Some('>') => {
                             self.commit_attribute();
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return if self.is_end_tag {
-                                Token::EndTag(tag)
-                            } else {
-                                Token::StartTag(tag)
-                            };
+                            return self.emit_current_tag();
                         }
                         Some(c) => {
                             self.current_attr_value.clear();
@@ -421,13 +503,7 @@ impl Tokenizer {
                         }
                         Some('>') => {
                             self.commit_attribute();
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return if self.is_end_tag {
-                                Token::EndTag(tag)
-                            } else {
-                                Token::StartTag(tag)
-                            };
+                            return self.emit_current_tag();
                         }
                         Some(c) => {
                             self.current_attr_value.push(c);
@@ -449,13 +525,7 @@ impl Tokenizer {
                             self.state = State::SelfClosingStartTag;
                         }
                         Some('>') => {
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return if self.is_end_tag {
-                                Token::EndTag(tag)
-                            } else {
-                                Token::StartTag(tag)
-                            };
+                            return self.emit_current_tag();
                         }
                         Some(c) => {
                             self.current_attr_name.clear();
@@ -475,9 +545,7 @@ impl Tokenizer {
                             if let Some(tag) = &mut self.current_tag {
                                 tag.self_closing = true;
                             }
-                            self.state = State::Data;
-                            let tag = self.current_tag.take().unwrap();
-                            return Token::StartTag(tag);
+                            return self.emit_current_tag();
                         }
                         _ => {
                             self.state = State::BeforeAttributeName;

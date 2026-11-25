@@ -1,0 +1,46 @@
+NIRVANA BROWSER ENGINE — PROPRIETARY SOURCE-AVAILABLE LICENSE
+Copyright (c) 2026 Aryan (@viroaryan) & Nirvana Browser Project.
+ALL RIGHTS RESERVED.
+
+1. RESERVATION OF RIGHTS & OWNERSHIP
+This repository, including all source code, Rust crates, Kotlin/Android sources,
+vector graphics, stylesheets, architecture documents, build scripts, tests, and
+design assets ("the Software"), is the exclusive intellectual property of Aryan
+(@viroaryan) and the Nirvana Browser Project ("the Licensor").
+
+2. LIMITED VIEWING & EVALUATION GRANT ONLY
+Subject to full compliance with all terms below, the Licensor grants you a
+revocable, non-exclusive, non-transferable, royalty-free right ONLY to view and
+compile the unmodified Software privately on your local machine solely for
+personal educational study, security auditing, or technical evaluation.
+
+3. STRICT PROHIBITIONS (NO COPYING OR REDISTRIBUTION)
+Unless you have obtained a separate, prior written and signed license agreement
+from the Licensor, you are STRICTLY PROHIBITED from doing any of the following:
+  (a) Copying, cloning for redistribution, re-uploading, mirroring, or
+      publishing any part or derivative of the Software in any public or private
+      repository, package registry (including crates.io, Maven, or GitHub
+      forks redistributed to third parties), or archive;
+  (b) Using, integrating, extracting, or adapting any crate, subsystem, parser,
+      layout engine, graphics rasterizer, ad-blocker, or Android UI code into
+      another browser, web engine, mobile application, SDK, or commercial product;
+  (c) Selling, renting, leasing, sublicensing, hosting as a service, or deriving
+      commercial revenue from the Software or modified versions thereof;
+  (d) Removing, obscuring, or altering any copyright notice, ownership mark,
+      emblem, or license header embedded in any file of the Software.
+
+4. CONTRIBUTIONS & UNSOLICITED SUBMISSIONS
+By submitting any Pull Request, Issue patch, suggestion, or feedback to this
+repository, you irrevocably assign and transfer to the Licensor all right, title,
+and interest (including copyright and patent rights) in your submission so that
+the Software remains strictly unified under Licensor ownership.
+
+5. NO WARRANTY & NO IMPLIED LICENSE
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. NO RIGHTS BY IMPLICATION, ESTOPPEL, OR OTHERWISE ARE GRANTED BEYOND THE
+LIMITED EVALUATION RIGHT EXPRESSLY STATED IN SECTION 2.
+
+6. COMMERCIAL OR RESEARCH LICENSING INQUIRIES
+For explicit written permission, enterprise partnerships, or contributor
+agreements, contact the repository owner directly via GitHub: @viroaryan
+(https://github.com/viroaryan/browserengine).

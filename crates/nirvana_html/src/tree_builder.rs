@@ -5,8 +5,8 @@ use nirvana_dom::{DomTree, NodeId};
 use crate::token::Token;
 
 const VOID_ELEMENTS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
-    "source", "track", "wbr",
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta",
+    "param", "source", "track", "wbr",
 ];
 
 /// Maximum depth of nested open elements permitted in DOM tree construction (512 levels).
@@ -99,6 +99,37 @@ impl TreeBuilder {
             let _ = self.tree.append_child(html_node, body);
             self.open_elements.push(body);
             self.has_body = true;
+        }
+    }
+
+    fn close_implied_elements(&mut self, next_tag: &str) {
+        let target = match next_tag {
+            "li" => Some(("li", &["ul", "ol"][..])),
+            "p" | "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "ul" | "ol" | "table"
+            | "blockquote" | "pre" | "form" | "section" | "article" | "header" | "footer"
+            | "main" | "nav" => Some(("p", &["body", "div", "section", "article", "main"][..])),
+            "td" | "th" => Some(("td", &["tr", "table"][..])),
+            "tr" => Some(("tr", &["table", "tbody", "thead", "tfoot"][..])),
+            "option" => Some(("option", &["select", "optgroup"][..])),
+            _ => None,
+        };
+
+        let Some((close_tag, scope_stop)) = target else {
+            return;
+        };
+
+        for idx in (0..self.open_elements.len()).rev() {
+            let elem_id = self.open_elements[idx];
+            if let Some(NodeData::Element(data)) = self.tree.get_node(elem_id).map(|n| &n.data) {
+                let name = data.tag_name.as_str();
+                if name == close_tag || (close_tag == "td" && name == "th") {
+                    self.open_elements.truncate(idx);
+                    return;
+                }
+                if scope_stop.contains(&name) {
+                    return;
+                }
+            }
         }
     }
 
@@ -200,6 +231,8 @@ impl TreeBuilder {
                     }
 
                     self.ensure_html_and_body(&tag.name);
+
+                    self.close_implied_elements(&tag.name);
 
                     if self.open_elements.len() >= MAX_TREE_DEPTH {
                         if !Self::is_void(&tag.name) && !tag.self_closing {
